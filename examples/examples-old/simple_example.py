@@ -7,7 +7,7 @@ for common scenarios.
 
 from taxcalc import (
     FilingStatus,
-    TaxpayerInfo,
+    TaxUnit,
     IncomeData,
     ItemizedDeductions,
     AMTAdjustments,
@@ -21,9 +21,9 @@ def example_1_basic():
     print("EXAMPLE 1: Single Filer - W-2 Income Only")
     print("="*80)
 
-    taxpayer = TaxpayerInfo(
+    taxpayer = TaxUnit(
         filing_status=FilingStatus.SINGLE,
-        age_primary=30
+        primary_age=30
     )
 
     income = IncomeData(
@@ -44,10 +44,10 @@ def example_2_married_with_investments():
     print("EXAMPLE 2: Married Filing Jointly - With Investments")
     print("="*80)
 
-    taxpayer = TaxpayerInfo(
+    taxpayer = TaxUnit(
         filing_status=FilingStatus.MARRIED_JOINT,
-        age_primary=45,
-        age_spouse=43,
+        primary_age=45,
+        spouse_age=43,
         num_dependents=2
     )
 
@@ -80,9 +80,9 @@ def example_3_amt_scenario():
     print("EXAMPLE 3: Single Filer - ISO Exercise (AMT)")
     print("="*80)
 
-    taxpayer = TaxpayerInfo(
+    taxpayer = TaxUnit(
         filing_status=FilingStatus.SINGLE,
-        age_primary=35
+        primary_age=35
     )
 
     income = IncomeData(
@@ -115,10 +115,10 @@ def quick_comparison():
     print("COMPARISON: Standard vs Itemized Deduction")
     print("="*80)
 
-    taxpayer = TaxpayerInfo(
+    taxpayer = TaxUnit(
         filing_status=FilingStatus.MARRIED_JOINT,
-        age_primary=40,
-        age_spouse=38
+        primary_age=40,
+        spouse_age=38
     )
 
     income = IncomeData(

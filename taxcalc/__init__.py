@@ -11,15 +11,21 @@ Last Updated: October 2025
 
 from .models import (
     FilingStatus,
-    TaxpayerInfo,
+    Person,
+    TaxUnit,
+    Income,
     IncomeData,
     ItemizedDeductions,
     AMTAdjustments,
+    TaxResult,
     TaxResults,
+    Policy,
     TaxConfig
 )
 
 from .calculator import TaxCalculator, TaxCalculator2024
+
+from .pipeline import compute_tax
 
 from .constants import (
     get_tax_config_2024,
@@ -31,13 +37,18 @@ __version__ = "1.1.0"
 __all__ = [
     # Models
     "FilingStatus",
-    "TaxpayerInfo",
+    "Person",
+    "TaxUnit",
     "IncomeData",
+    "Income",
     "ItemizedDeductions",
     "AMTAdjustments",
     "TaxResults",
+    "TaxResult",
+    "Policy",
     "TaxConfig",
     # Calculators
+    "compute_tax",
     "TaxCalculator",
     "TaxCalculator2024",
     # Config helpers

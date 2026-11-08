@@ -10,7 +10,7 @@ This example demonstrates how to:
 
 from taxcalc import (
     FilingStatus,
-    TaxpayerInfo,
+    TaxUnit,
     IncomeData,
     ItemizedDeductions,
     TaxCalculator,
@@ -27,10 +27,10 @@ def example_1_compare_2024_vs_2025():
     print("="*80)
 
     # Define taxpayer
-    taxpayer = TaxpayerInfo(
+    taxpayer = TaxUnit(
         filing_status=FilingStatus.MARRIED_JOINT,
-        age_primary=45,
-        age_spouse=43
+        primary_age=45,
+        spouse_age=43
     )
 
     # Define income
@@ -101,7 +101,7 @@ def example_2_custom_brackets():
     print("  • SALT cap increased from $10,000 to $15,000")
 
     # Test scenario
-    taxpayer = TaxpayerInfo(filing_status=FilingStatus.MARRIED_JOINT, age_primary=50, age_spouse=48)
+    taxpayer = TaxUnit(filing_status=FilingStatus.MARRIED_JOINT, primary_age=50, spouse_age=48)
     income = IncomeData(wages_w2=300000)
     itemized = ItemizedDeductions(
         state_local_income_taxes=25000,  # Benefits from higher SALT cap
@@ -136,7 +136,7 @@ def example_3_what_if_no_salt_cap():
     no_salt_cap_config.salt_cap_mfs = float('inf')
 
     # High-tax-state scenario
-    taxpayer = TaxpayerInfo(filing_status=FilingStatus.MARRIED_JOINT, age_primary=55, age_spouse=53)
+    taxpayer = TaxUnit(filing_status=FilingStatus.MARRIED_JOINT, primary_age=55, spouse_age=53)
     income = IncomeData(wages_w2=500000, long_term_capital_gains=200000)
     itemized = ItemizedDeductions(
         state_local_income_taxes=75000,  # High state taxes
@@ -230,7 +230,7 @@ def example_4_custom_from_scratch():
     )
 
     # Test with a simple scenario
-    taxpayer = TaxpayerInfo(filing_status=FilingStatus.SINGLE, age_primary=40)
+    taxpayer = TaxUnit(filing_status=FilingStatus.SINGLE, primary_age=40)
     income = IncomeData(wages_w2=200000, long_term_capital_gains=50000)
     itemized = ItemizedDeductions()
 

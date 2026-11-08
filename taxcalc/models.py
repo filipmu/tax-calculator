@@ -7,6 +7,7 @@ including taxpayer information, income sources, deductions, and results.
 
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import List, Dict, Tuple
 
 
 class FilingStatus(Enum):
@@ -15,17 +16,117 @@ class FilingStatus(Enum):
     MARRIED_JOINT = "married_joint"
     MARRIED_SEPARATE = "married_separate"
     HEAD_OF_HOUSEHOLD = "head_of_household"
+    QUALIFYING_WIDOW = "qualifying_widow"
+
+@dataclass
+class Person:
+    age: int
+    blind: bool = False
+    disabled: bool = False
+    full_time_student: bool = False
+    relationship: str | None = None   # e.g., "child", "spouse", "parent"
 
 
 @dataclass
-class TaxpayerInfo:
-    """Basic taxpayer information"""
+class Income:
+    """ All income sources"""
+    # Wage and salary income
+    wages_w2: float = 0.0
+
+    # Investment income
+    interest: float = 0.0
+    qualified_dividends: float = 0.0
+    ordinary_dividends: float = 0.0
+
+    # Capital gains
+    short_term_capital_gains: float = 0.0
+    long_term_capital_gains: float = 0.0
+
+    # Business and other income
+    self_employment: float = 0.0
+    rental: float = 0.0
+    other: float = 0.0
+
+    # Income adjustments
+    ira_deduction: float = 0.0
+    student_loan_interest_deduction = 0.0
+
+
+    # Tax-exempt interest (affects AMT)
+    tax_exempt_interest: float = 0.0
+    private_activity_bond_interest: float = 0.0
+
+@dataclass
+class TaxUnit:
+    """Basic taxpayer unit information"""
     filing_status: FilingStatus
-    age_primary: int
-    age_spouse: int = 0
-    is_blind_primary: bool = False
-    is_blind_spouse: bool = False
-    num_dependents: int = 0
+    primary: Person
+    income: Income 
+    spouse: Person | None = None
+    dependents: List[Person] = field(default_factory=list)
+
+
+
+
+    #dependent_ages: List[int] = field(default_factory=list)
+
+    @property
+    def num_dependents(self) -> int:
+        return len(self.dependents)
+
+    @property
+    def is_married(self) -> bool:
+        return self.filing_status in {
+            FilingStatus.MARRIED_JOINT,
+            FilingStatus.MARRIED_SEPARATE
+        }
+    
+    def __post_init__(self):
+        # Filing status checks
+        if self.filing_status in {
+            FilingStatus.MARRIED_JOINT,
+            FilingStatus.MARRIED_SEPARATE
+        } and self.spouse.age is None:
+            raise ValueError("Married filing statuses require spouse_age")
+
+        if self.filing_status is FilingStatus.SINGLE and self.spouse is not None:
+            raise ValueError("Single filers cannot have a spouse")
+
+        # Age sanity checks
+        if self.primary.age < 0:
+            raise ValueError("Primary age cannot be negative")
+
+        if self.spouse is not None and self.spouse.age < 0:
+            raise ValueError("Spouse age cannot be negative")
+
+        for dep in self.dependents:
+            if dep.age < 0:
+                raise ValueError("Dependent ages must be non-negative")
+
+
+
+
+
+
+
+@dataclass
+class Policy:
+    year: int
+    jurisdiction: str  # e.g., "federal", "MN"
+
+    # Standard deduction by filing status
+    standard_deduction: Dict[FilingStatus, float]
+
+    # Brackets: list of (rate, threshold)
+    # Example: [(0.10, 11000), (0.12, 44725), ...]
+    brackets: Dict[FilingStatus, List[Tuple[float, float]]]
+
+    # Placeholder for credits (we’ll expand later)
+    child_credit_amount: float = 0.0
+
+
+
+
 
 
 @dataclass
@@ -159,6 +260,14 @@ class TaxConfig:
     capital_loss_limit: float = 3000
     capital_loss_limit_mfs: float = 1500
 
+@dataclass
+class TaxResult:
+    """Core calculation results"""
+    agi: float
+    taxable_income: float
+    pre_credit_tax: float
+    total_credits: float
+    net_tax: float
 
 @dataclass
 class TaxResults:

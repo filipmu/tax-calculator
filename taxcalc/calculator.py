@@ -7,7 +7,7 @@ including regular income tax, capital gains, AMT, NIIT, and California state tax
 
 from .models import (
     FilingStatus,
-    TaxpayerInfo,
+    TaxUnit,
     IncomeData,
     ItemizedDeductions,
     AMTAdjustments,
@@ -25,7 +25,7 @@ class TaxCalculator:
     Default configuration uses 2024 tax year parameters.
     """
 
-    def __init__(self, taxpayer_info: TaxpayerInfo, income: IncomeData,
+    def __init__(self, taxpayer_info: TaxUnit, income: IncomeData,
                  itemized_deductions: ItemizedDeductions, amt_adjustments: AMTAdjustments = None,
                  config: TaxConfig = None):
         """
@@ -175,16 +175,16 @@ class TaxCalculator:
         per_person_amount = self.config.additional_deduction_married if is_married else self.config.additional_deduction_unmarried
 
         # Primary taxpayer
-        if self.taxpayer.age_primary >= 65:
+        if self.taxpayer.primary.age >= 65:
             additional += per_person_amount
-        if self.taxpayer.is_blind_primary:
+        if self.taxpayer.primary.blind:
             additional += per_person_amount
 
         # Spouse (if married)
         if is_married and self.taxpayer.filing_status == FilingStatus.MARRIED_JOINT:
-            if self.taxpayer.age_spouse >= 65:
+            if self.taxpayer.spouse.age >= 65:
                 additional += per_person_amount
-            if self.taxpayer.is_blind_spouse:
+            if self.taxpayer.spouse.blind:
                 additional += per_person_amount
 
         return base_deduction + additional
@@ -514,7 +514,7 @@ TAX CALCULATION SUMMARY - TAX YEAR {self.config.tax_year}
 
 TAXPAYER INFORMATION:
   Filing Status: {filing_status_name}
-  Age: {self.taxpayer.age_primary} (Primary)
+  Age: {self.taxpayer.primary.age} (Primary)
   Dependents: {self.taxpayer.num_dependents}
 
 {'='*80}
@@ -604,7 +604,7 @@ class TaxCalculator2024(TaxCalculator):
     This is an alias for TaxCalculator that defaults to 2024 configuration.
     For new code, use TaxCalculator directly with an optional config parameter.
     """
-    def __init__(self, taxpayer_info: TaxpayerInfo, income: IncomeData,
+    def __init__(self, taxpayer_info: TaxUnit, income: IncomeData,
                  itemized_deductions: ItemizedDeductions, amt_adjustments: AMTAdjustments = None,
                  use_2025_sdi_rate: bool = False):
         """
