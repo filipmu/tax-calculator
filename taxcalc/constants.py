@@ -48,6 +48,15 @@ FEDERAL_TAX_BRACKETS = {
         (243700, 0.32),
         (609350, 0.35),
         (float('inf'), 0.37)
+    ],
+    FilingStatus.QUALIFYING_WIDOW: [
+        (23200, 0.10),
+        (94300, 0.12),
+        (201050, 0.22),
+        (383900, 0.24),
+        (487450, 0.32),
+        (731200, 0.35),
+        (float('inf'), 0.37)
     ]
 }
 
@@ -59,7 +68,8 @@ STANDARD_DEDUCTION = {
     FilingStatus.SINGLE: 14600,
     FilingStatus.MARRIED_JOINT: 29200,
     FilingStatus.MARRIED_SEPARATE: 14600,
-    FilingStatus.HEAD_OF_HOUSEHOLD: 21900
+    FilingStatus.HEAD_OF_HOUSEHOLD: 21900,
+    FilingStatus.QUALIFYING_WIDOW: 29200
 }
 
 # Additional standard deduction for age 65+ or blind
@@ -90,6 +100,11 @@ LTCG_BRACKETS = {
         (63000, 0.00),
         (551350, 0.15),
         (float('inf'), 0.20)
+    ],
+    FilingStatus.QUALIFYING_WIDOW: [
+        (94050, 0.00),
+        (583750, 0.15),
+        (float('inf'), 0.20)
     ]
 }
 
@@ -101,14 +116,16 @@ AMT_EXEMPTION = {
     FilingStatus.SINGLE: 85700,
     FilingStatus.MARRIED_JOINT: 133300,
     FilingStatus.MARRIED_SEPARATE: 66650,
-    FilingStatus.HEAD_OF_HOUSEHOLD: 85700
+    FilingStatus.HEAD_OF_HOUSEHOLD: 85700,
+    FilingStatus.QUALIFYING_WIDOW: 133300
 }
 
 AMT_EXEMPTION_PHASEOUT_START = {
     FilingStatus.SINGLE: 609350,
     FilingStatus.MARRIED_JOINT: 1218700,
     FilingStatus.MARRIED_SEPARATE: 609350,
-    FilingStatus.HEAD_OF_HOUSEHOLD: 609350
+    FilingStatus.HEAD_OF_HOUSEHOLD: 609350,
+    FilingStatus.QUALIFYING_WIDOW: 1218700
 }
 
 # AMT exemption phases out at 25 cents per dollar of AMTI above threshold
@@ -119,7 +136,8 @@ AMT_RATE_THRESHOLD = {
     FilingStatus.SINGLE: 232600,
     FilingStatus.MARRIED_JOINT: 232600,
     FilingStatus.MARRIED_SEPARATE: 116300,
-    FilingStatus.HEAD_OF_HOUSEHOLD: 232600
+    FilingStatus.HEAD_OF_HOUSEHOLD: 232600,
+    FilingStatus.QUALIFYING_WIDOW: 232600
 }
 AMT_RATE_LOW = 0.26
 AMT_RATE_HIGH = 0.28
@@ -133,7 +151,8 @@ NIIT_THRESHOLD = {
     FilingStatus.SINGLE: 200000,
     FilingStatus.MARRIED_JOINT: 250000,
     FilingStatus.MARRIED_SEPARATE: 125000,
-    FilingStatus.HEAD_OF_HOUSEHOLD: 200000
+    FilingStatus.HEAD_OF_HOUSEHOLD: 200000,
+    FilingStatus.QUALIFYING_WIDOW: 250000
 }
 
 # ============================================================================
@@ -145,7 +164,8 @@ MEDICARE_THRESHOLD = {
     FilingStatus.SINGLE: 200000,
     FilingStatus.MARRIED_JOINT: 250000,
     FilingStatus.MARRIED_SEPARATE: 125000,
-    FilingStatus.HEAD_OF_HOUSEHOLD: 200000
+    FilingStatus.HEAD_OF_HOUSEHOLD: 200000,
+    FilingStatus.QUALIFYING_WIDOW: 250000
 }
 
 # ============================================================================
@@ -196,6 +216,17 @@ CA_TAX_BRACKETS = {
         (588593, 0.103),
         (980987, 0.113),
         (float('inf'), 0.123)
+    ],
+    FilingStatus.QUALIFYING_WIDOW: [
+        (21512, 0.01),
+        (50998, 0.02),
+        (80490, 0.04),
+        (111732, 0.06),
+        (141212, 0.08),
+        (721318, 0.093),
+        (865574, 0.103),
+        (1442628, 0.113),
+        (float('inf'), 0.123)
     ]
 }
 
@@ -211,7 +242,8 @@ CA_STANDARD_DEDUCTION = {
     FilingStatus.SINGLE: 5540,
     FilingStatus.MARRIED_JOINT: 11080,
     FilingStatus.MARRIED_SEPARATE: 5540,
-    FilingStatus.HEAD_OF_HOUSEHOLD: 11080
+    FilingStatus.HEAD_OF_HOUSEHOLD: 11080,
+    FilingStatus.QUALIFYING_WIDOW: 11080
 }
 
 # ============================================================================
@@ -253,7 +285,7 @@ def get_tax_config_2024() -> TaxConfig:
 
     Example:
         config = get_tax_config_2024()
-        calc = TaxCalculator(taxpayer, income, itemized, config=config)
+        calc = TaxCalculator(taxpayer, itemized, config=config)
     """
     return TaxConfig(
         tax_year=2024,
@@ -299,7 +331,7 @@ def get_tax_config_2025() -> TaxConfig:
 
     Example:
         config = get_tax_config_2025()
-        calc = TaxCalculator(taxpayer, income, itemized, config=config)
+        calc = TaxCalculator(taxpayer, itemized, config=config)
     """
     # Start with 2024 config
     config = get_tax_config_2024()

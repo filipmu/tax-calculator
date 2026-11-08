@@ -7,8 +7,9 @@ for common scenarios.
 
 from taxcalc import (
     FilingStatus,
+    Person,
     TaxUnit,
-    IncomeData,
+    Income,
     ItemizedDeductions,
     AMTAdjustments,
     TaxCalculator2024
@@ -23,16 +24,15 @@ def example_1_basic():
 
     taxpayer = TaxUnit(
         filing_status=FilingStatus.SINGLE,
-        primary_age=30
-    )
-
-    income = IncomeData(
-        wages_w2=150000
+        primary=Person(age=30),
+        income=Income(
+            wages_w2=150000
+        )
     )
 
     itemized = ItemizedDeductions()  # Will use standard deduction
 
-    calc = TaxCalculator2024(taxpayer, income, itemized)
+    calc = TaxCalculator2024(taxpayer, itemized)
     results = calc.calculate_all_taxes()
 
     print(calc.generate_summary_report(results))
@@ -46,17 +46,20 @@ def example_2_married_with_investments():
 
     taxpayer = TaxUnit(
         filing_status=FilingStatus.MARRIED_JOINT,
-        primary_age=45,
-        spouse_age=43,
-        num_dependents=2
-    )
-
-    income = IncomeData(
-        wages_w2=400000,
-        interest_income=5000,
-        qualified_dividends=15000,
-        long_term_capital_gains=100000,
-        rental_income=20000
+        primary=Person(age=45),
+        spouse=Person(age=43),
+        dependents=[
+            Person(age=10, relationship="child"),
+            Person(age=8, relationship="child")
+        ],
+        income=Income(
+            wages_w2=400000,
+            interest=5000,
+            ordinary_dividends=15000,
+            qualified_dividends=15000,
+            long_term_capital_gains=100000,
+            rental=20000
+        )
     )
 
     itemized = ItemizedDeductions(
@@ -68,7 +71,7 @@ def example_2_married_with_investments():
         donor_advised_fund_contributions=20000
     )
 
-    calc = TaxCalculator2024(taxpayer, income, itemized)
+    calc = TaxCalculator2024(taxpayer, itemized)
     results = calc.calculate_all_taxes()
 
     print(calc.generate_summary_report(results))
@@ -82,13 +85,13 @@ def example_3_amt_scenario():
 
     taxpayer = TaxUnit(
         filing_status=FilingStatus.SINGLE,
-        primary_age=35
-    )
-
-    income = IncomeData(
-        wages_w2=250000,
-        long_term_capital_gains=50000,
-        qualified_dividends=10000
+        primary=Person(age=35),
+        income=Income(
+            wages_w2=250000,
+            long_term_capital_gains=50000,
+            ordinary_dividends=10000,
+            qualified_dividends=10000
+        )
     )
 
     itemized = ItemizedDeductions(
@@ -103,7 +106,7 @@ def example_3_amt_scenario():
         iso_bargain_element=200000
     )
 
-    calc = TaxCalculator2024(taxpayer, income, itemized, amt_adj)
+    calc = TaxCalculator2024(taxpayer, itemized, amt_adj)
     results = calc.calculate_all_taxes()
 
     print(calc.generate_summary_report(results))
@@ -117,17 +120,16 @@ def quick_comparison():
 
     taxpayer = TaxUnit(
         filing_status=FilingStatus.MARRIED_JOINT,
-        primary_age=40,
-        spouse_age=38
-    )
-
-    income = IncomeData(
-        wages_w2=200000,
-        long_term_capital_gains=30000
+        primary=Person(age=40),
+        spouse=Person(age=38),
+        income=Income(
+            wages_w2=200000,
+            long_term_capital_gains=30000
+        )
     )
 
     # Scenario 1: Standard deduction
-    calc1 = TaxCalculator2024(taxpayer, income, ItemizedDeductions())
+    calc1 = TaxCalculator2024(taxpayer, ItemizedDeductions())
     results1 = calc1.calculate_all_taxes()
 
     # Scenario 2: With itemized deductions
@@ -136,7 +138,7 @@ def quick_comparison():
         mortgage_interest=20000,
         cash_contributions_50pct_orgs=15000
     )
-    calc2 = TaxCalculator2024(taxpayer, income, itemized)
+    calc2 = TaxCalculator2024(taxpayer, itemized)
     results2 = calc2.calculate_all_taxes()
 
     print("\nScenario 1: Standard Deduction")

@@ -10,8 +10,9 @@ This example demonstrates how to:
 
 from taxcalc import (
     FilingStatus,
+    Person,
     TaxUnit,
-    IncomeData,
+    Income,
     ItemizedDeductions,
     TaxCalculator,
     TaxConfig,
@@ -29,15 +30,14 @@ def example_1_compare_2024_vs_2025():
     # Define taxpayer
     taxpayer = TaxUnit(
         filing_status=FilingStatus.MARRIED_JOINT,
-        primary_age=45,
-        spouse_age=43
-    )
-
-    # Define income
-    income = IncomeData(
-        wages_w2=400000,
-        long_term_capital_gains=100000,
-        qualified_dividends=15000
+        primary=Person(age=45),
+        spouse=Person(age=43),
+        income=Income(
+            wages_w2=400000,
+            long_term_capital_gains=100000,
+            ordinary_dividends=15000,
+            qualified_dividends=15000
+        )
     )
 
     # Define deductions
@@ -49,12 +49,12 @@ def example_1_compare_2024_vs_2025():
 
     # Calculate for 2024
     config_2024 = get_tax_config_2024()
-    calc_2024 = TaxCalculator(taxpayer, income, itemized, config=config_2024)
+    calc_2024 = TaxCalculator(taxpayer, itemized, config=config_2024)
     results_2024 = calc_2024.calculate_all_taxes()
 
     # Calculate for 2025
     config_2025 = get_tax_config_2025()
-    calc_2025 = TaxCalculator(taxpayer, income, itemized, config=config_2025)
+    calc_2025 = TaxCalculator(taxpayer, itemized, config=config_2025)
     results_2025 = calc_2025.calculate_all_taxes()
 
     # Compare results
@@ -101,8 +101,12 @@ def example_2_custom_brackets():
     print("  • SALT cap increased from $10,000 to $15,000")
 
     # Test scenario
-    taxpayer = TaxUnit(filing_status=FilingStatus.MARRIED_JOINT, primary_age=50, spouse_age=48)
-    income = IncomeData(wages_w2=300000)
+    taxpayer = TaxUnit(
+        filing_status=FilingStatus.MARRIED_JOINT,
+        primary=Person(age=50),
+        spouse=Person(age=48),
+        income=Income(wages_w2=300000)
+    )
     itemized = ItemizedDeductions(
         state_local_income_taxes=25000,  # Benefits from higher SALT cap
         mortgage_interest=30000,
@@ -110,8 +114,8 @@ def example_2_custom_brackets():
     )
 
     # Compare 2025 actual vs 2026 hypothetical
-    calc_2025 = TaxCalculator(taxpayer, income, itemized, config=get_tax_config_2025())
-    calc_2026 = TaxCalculator(taxpayer, income, itemized, config=custom_config)
+    calc_2025 = TaxCalculator(taxpayer, itemized, config=get_tax_config_2025())
+    calc_2026 = TaxCalculator(taxpayer, itemized, config=custom_config)
 
     results_2025 = calc_2025.calculate_all_taxes()
     results_2026 = calc_2026.calculate_all_taxes()
@@ -136,8 +140,12 @@ def example_3_what_if_no_salt_cap():
     no_salt_cap_config.salt_cap_mfs = float('inf')
 
     # High-tax-state scenario
-    taxpayer = TaxUnit(filing_status=FilingStatus.MARRIED_JOINT, primary_age=55, spouse_age=53)
-    income = IncomeData(wages_w2=500000, long_term_capital_gains=200000)
+    taxpayer = TaxUnit(
+        filing_status=FilingStatus.MARRIED_JOINT,
+        primary=Person(age=55),
+        spouse=Person(age=53),
+        income=Income(wages_w2=500000, long_term_capital_gains=200000)
+    )
     itemized = ItemizedDeductions(
         state_local_income_taxes=75000,  # High state taxes
         real_estate_taxes=25000,
@@ -146,11 +154,11 @@ def example_3_what_if_no_salt_cap():
     )
 
     # Calculate with current rules (SALT cap)
-    calc_with_cap = TaxCalculator(taxpayer, income, itemized, config=get_tax_config_2024())
+    calc_with_cap = TaxCalculator(taxpayer, itemized, config=get_tax_config_2024())
     results_with_cap = calc_with_cap.calculate_all_taxes()
 
     # Calculate without SALT cap
-    calc_no_cap = TaxCalculator(taxpayer, income, itemized, config=no_salt_cap_config)
+    calc_no_cap = TaxCalculator(taxpayer, itemized, config=no_salt_cap_config)
     results_no_cap = calc_no_cap.calculate_all_taxes()
 
     total_salt = itemized.state_local_income_taxes + itemized.real_estate_taxes
@@ -230,13 +238,16 @@ def example_4_custom_from_scratch():
     )
 
     # Test with a simple scenario
-    taxpayer = TaxUnit(filing_status=FilingStatus.SINGLE, primary_age=40)
-    income = IncomeData(wages_w2=200000, long_term_capital_gains=50000)
+    taxpayer = TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=40),
+        income=Income(wages_w2=200000, long_term_capital_gains=50000)
+    )
     itemized = ItemizedDeductions()
 
     # Compare current system vs flat tax
-    calc_current = TaxCalculator(taxpayer, income, itemized, config=get_tax_config_2024())
-    calc_flat = TaxCalculator(taxpayer, income, itemized, config=flat_tax_config)
+    calc_current = TaxCalculator(taxpayer, itemized, config=get_tax_config_2024())
+    calc_flat = TaxCalculator(taxpayer, itemized, config=flat_tax_config)
 
     results_current = calc_current.calculate_all_taxes()
     results_flat = calc_flat.calculate_all_taxes()
@@ -286,6 +297,6 @@ To create your own custom configuration:
       # ... other parameters
   )
 
-  calc = TaxCalculator(taxpayer, income, itemized, config=custom)
+  calc = TaxCalculator(taxpayer, itemized, config=custom)
     """)
     print("="*80)

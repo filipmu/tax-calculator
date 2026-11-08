@@ -89,23 +89,22 @@ python your_tax_script.py
 ```python
 from taxcalc import (
     FilingStatus,
-    TaxpayerInfo,
-    IncomeData,
+    Person,
+    TaxUnit,
+    Income,
     ItemizedDeductions,
     TaxCalculator2024
 )
 
 # Define taxpayer
-taxpayer = TaxpayerInfo(
+taxpayer = TaxUnit(
     filing_status=FilingStatus.MARRIED_JOINT,
-    age_primary=45,
-    age_spouse=43
-)
-
-# Define income
-income = IncomeData(
-    wages_w2=400000,
-    long_term_capital_gains=100000
+    primary=Person(age=45),
+    spouse=Person(age=43),
+    income=Income(
+        wages_w2=400000,
+        long_term_capital_gains=100000
+    )
 )
 
 # Define deductions
@@ -116,7 +115,7 @@ itemized = ItemizedDeductions(
 )
 
 # Calculate
-calc = TaxCalculator2024(taxpayer, income, itemized)
+calc = TaxCalculator2024(taxpayer, itemized)
 results = calc.calculate_all_taxes()
 
 # View results
@@ -177,7 +176,7 @@ print(f"Effective Rate: {results.effective_total_rate*100:.2f}%")
 
 ## Important Notes
 
-1. **Above-the-line deductions**: Subtract 401(k), IRA, HSA from wages before input
+1. **Above-the-line deductions**: Traditional IRA and student loan interest are set on `Income`; subtract 401(k)/HSA workplace contributions from `wages_w2` before input
 2. **Accuracy**: Based on official IRS and CA FTB 2024 guidance
 3. **Limitations**: Does not include self-employment tax calculation
 4. **Use**: For planning purposes only - consult tax professional for filing

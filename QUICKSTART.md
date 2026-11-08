@@ -33,23 +33,24 @@ Then open the example notebook: `examples/tax_analysis_example.ipynb`
 ```python
 from taxcalc import (
     FilingStatus,
-    TaxpayerInfo,
-    IncomeData,
+    Person,
+    TaxUnit,
+    Income,
     ItemizedDeductions,
     TaxCalculator2024
 )
 
 # Define your tax scenario
-taxpayer = TaxpayerInfo(
+taxpayer = TaxUnit(
     filing_status=FilingStatus.MARRIED_JOINT,
-    age_primary=45,
-    age_spouse=43
-)
-
-income = IncomeData(
-    wages_w2=400000,
-    long_term_capital_gains=100000,
-    qualified_dividends=15000
+    primary=Person(age=45),
+    spouse=Person(age=43),
+    income=Income(
+        wages_w2=400000,
+        long_term_capital_gains=100000,
+        ordinary_dividends=15000,
+        qualified_dividends=15000
+    )
 )
 
 itemized = ItemizedDeductions(
@@ -59,7 +60,7 @@ itemized = ItemizedDeductions(
 )
 
 # Calculate taxes
-calc = TaxCalculator2024(taxpayer, income, itemized)
+calc = TaxCalculator2024(taxpayer, itemized)
 results = calc.calculate_all_taxes()
 
 # View results
@@ -82,15 +83,14 @@ python examples/simple_example.py
 from taxcalc import *
 
 # Your tax data here
-taxpayer = TaxpayerInfo(
+taxpayer = TaxUnit(
     filing_status=FilingStatus.SINGLE,
-    age_primary=30
+    primary=Person(age=30),
+    income=Income(wages_w2=150000)
 )
-
-income = IncomeData(wages_w2=150000)
 itemized = ItemizedDeductions()
 
-calc = TaxCalculator2024(taxpayer, income, itemized)
+calc = TaxCalculator2024(taxpayer, itemized)
 results = calc.calculate_all_taxes()
 
 print(f"Total Tax: ${results.total_tax_liability:,.2f}")
@@ -112,7 +112,7 @@ python my_tax_calculation.py
    - Compare total_tax_liability
 
 2. **Analyze Capital Gains Impact**
-   - Add long_term_capital_gains to IncomeData
+   - Add long_term_capital_gains to `Income`
    - Note preferential tax treatment (0%, 15%, 20%)
 
 3. **Check AMT Exposure**
@@ -127,18 +127,26 @@ python my_tax_calculation.py
 
 ### Scenario 1: Basic W-2 Employee
 ```python
-taxpayer = TaxpayerInfo(filing_status=FilingStatus.SINGLE, age_primary=30)
-income = IncomeData(wages_w2=150000)
+taxpayer = TaxUnit(
+    filing_status=FilingStatus.SINGLE,
+    primary=Person(age=30),
+    income=Income(wages_w2=150000)
+)
 itemized = ItemizedDeductions()
 ```
 
 ### Scenario 2: High-Income with Investments
 ```python
-taxpayer = TaxpayerInfo(filing_status=FilingStatus.MARRIED_JOINT, age_primary=45, age_spouse=43)
-income = IncomeData(
-    wages_w2=400000,
-    long_term_capital_gains=100000,
-    qualified_dividends=20000
+taxpayer = TaxUnit(
+    filing_status=FilingStatus.MARRIED_JOINT,
+    primary=Person(age=45),
+    spouse=Person(age=43),
+    income=Income(
+        wages_w2=400000,
+        long_term_capital_gains=100000,
+        ordinary_dividends=20000,
+        qualified_dividends=20000
+    )
 )
 itemized = ItemizedDeductions(
     state_local_income_taxes=25000,
@@ -148,11 +156,14 @@ itemized = ItemizedDeductions(
 
 ### Scenario 3: ISO Exercise (AMT)
 ```python
-taxpayer = TaxpayerInfo(filing_status=FilingStatus.SINGLE, age_primary=35)
-income = IncomeData(wages_w2=250000)
+taxpayer = TaxUnit(
+    filing_status=FilingStatus.SINGLE,
+    primary=Person(age=35),
+    income=Income(wages_w2=250000)
+)
 itemized = ItemizedDeductions(state_local_income_taxes=30000)
 amt_adj = AMTAdjustments(iso_bargain_element=200000)
-calc = TaxCalculator2024(taxpayer, income, itemized, amt_adj)
+calc = TaxCalculator2024(taxpayer, itemized, amt_adj)
 ```
 
 ## Understanding the Results
@@ -172,7 +183,7 @@ The `TaxResults` object contains all calculations:
 
 ## Tips
 
-1. **Pre-tax contributions**: Subtract 401(k), Traditional IRA, and HSA contributions from wages_w2 before input
+1. **Pre-tax contributions**: Traditional IRA and student loan interest go in `Income.ira_deduction` / `Income.student_loan_interest_deduction`; subtract 401(k) and HSA contributions from wages_w2 before input
 2. **SALT cap**: Federal SALT deduction automatically capped at $10,000
 3. **Charitable limits**: Cash contributions limited to 60% of AGI, property to 30%
 4. **Medical expenses**: Only amount exceeding 7.5% of AGI is deductible

@@ -51,24 +51,24 @@ pip install -e ".[dev]"
 ```python
 from taxcalc import (
     FilingStatus,
-    TaxpayerInfo,
-    IncomeData,
+    Person,
+    TaxUnit,
+    Income,
     ItemizedDeductions,
     TaxCalculator2024
 )
 
-# Define taxpayer information
-taxpayer = TaxpayerInfo(
+# Define taxpayer information (people + income)
+taxpayer = TaxUnit(
     filing_status=FilingStatus.MARRIED_JOINT,
-    age_primary=45,
-    age_spouse=43
-)
-
-# Define income sources
-income = IncomeData(
-    wages_w2=400000,
-    long_term_capital_gains=100000,
-    qualified_dividends=15000
+    primary=Person(age=45),
+    spouse=Person(age=43),
+    income=Income(
+        wages_w2=400000,
+        long_term_capital_gains=100000,
+        ordinary_dividends=15000,
+        qualified_dividends=15000
+    )
 )
 
 # Define itemized deductions
@@ -79,7 +79,7 @@ itemized = ItemizedDeductions(
 )
 
 # Calculate taxes
-calculator = TaxCalculator2024(taxpayer, income, itemized)
+calculator = TaxCalculator2024(taxpayer, itemized)
 results = calculator.calculate_all_taxes()
 
 # Print detailed report
@@ -107,7 +107,7 @@ jupyter lab examples/tax_analysis_example.ipynb
 tax-calculator/
 ├── taxcalc/                    # Main package
 │   ├── __init__.py            # Package initialization
-│   ├── models.py              # Data models (TaxpayerInfo, IncomeData, etc.)
+│   ├── models.py              # Data models (TaxUnit, Person, Income, etc.)
 │   ├── constants.py           # Tax rates, brackets, and thresholds
 │   └── calculator.py          # Main calculator implementation
 ├── examples/                   # Example notebooks and scripts
@@ -121,30 +121,45 @@ tax-calculator/
 
 ### Core Classes
 
-#### `TaxpayerInfo`
-Basic taxpayer information and filing status.
+#### `TaxUnit`
+Basic taxpayer unit information, including all people and income sources.
 
 **Fields:**
-- `filing_status`: FilingStatus enum (SINGLE, MARRIED_JOINT, MARRIED_SEPARATE, HEAD_OF_HOUSEHOLD)
-- `age_primary`: Age of primary taxpayer
-- `age_spouse`: Age of spouse (default: 0)
-- `is_blind_primary`: Whether primary taxpayer is blind (default: False)
-- `is_blind_spouse`: Whether spouse is blind (default: False)
-- `num_dependents`: Number of dependents (default: 0)
+- `filing_status`: FilingStatus enum (SINGLE, MARRIED_JOINT, MARRIED_SEPARATE, HEAD_OF_HOUSEHOLD, QUALIFYING_WIDOW)
+- `primary`: `Person` representing the primary taxpayer
+- `spouse`: `Person` representing the spouse, or `None`
+- `dependents`: List of `Person` objects (default: empty)
+- `income`: `Income` object containing all income sources and adjustments
 
-#### `IncomeData`
-All income sources.
+**Properties:**
+- `num_dependents`: Number of dependents
+- `is_married`: Whether the filing status is married
+
+#### `Person`
+Information about one person in the tax unit.
+
+**Fields:**
+- `age`: Age of the person
+- `blind`: Whether the person is blind (default: False)
+- `disabled`: Whether the person is disabled (default: False)
+- `full_time_student`: Whether the person is a full-time student (default: False)
+- `relationship`: Relationship to the taxpayer, e.g. "child" or "spouse"
+
+#### `Income`
+All income sources and above-the-line adjustments.
 
 **Fields:**
 - `wages_w2`: W-2 wage income
-- `interest_income`: Interest income
-- `qualified_dividends`: Qualified dividends
-- `ordinary_dividends`: Ordinary dividends
+- `interest`: Interest income
+- `qualified_dividends`: Qualified dividends (a subset of `ordinary_dividends`)
+- `ordinary_dividends`: Ordinary dividends (includes qualified dividends)
 - `short_term_capital_gains`: Short-term capital gains
 - `long_term_capital_gains`: Long-term capital gains
-- `self_employment_income`: Self-employment income
-- `rental_income`: Rental income
-- `other_income`: Other income
+- `self_employment`: Self-employment income
+- `rental`: Rental income
+- `other`: Other income
+- `ira_deduction`: Traditional IRA deduction
+- `student_loan_interest_deduction`: Student loan interest deduction
 - `tax_exempt_interest`: Tax-exempt interest
 - `private_activity_bond_interest`: Private activity bond interest (affects AMT)
 
@@ -183,8 +198,7 @@ Main calculator class.
 - `generate_summary_report(results)`: Returns formatted text report
 
 **Parameters:**
-- `taxpayer_info`: TaxpayerInfo object
-- `income`: IncomeData object
+- `taxpayer_info`: TaxUnit object (contains people and income)
 - `itemized_deductions`: ItemizedDeductions object
 - `amt_adjustments`: AMTAdjustments object (optional)
 - `use_2025_sdi_rate`: Use 2025 CA SDI rate instead of 2024 (default: False)
@@ -228,11 +242,14 @@ All calculations are based on official IRS and California FTB guidance for tax y
 ```python
 from taxcalc import *
 
-taxpayer = TaxpayerInfo(filing_status=FilingStatus.SINGLE, age_primary=30)
-income = IncomeData(wages_w2=150000)
+taxpayer = TaxUnit(
+    filing_status=FilingStatus.SINGLE,
+    primary=Person(age=30),
+    income=Income(wages_w2=150000)
+)
 itemized = ItemizedDeductions()
 
-calc = TaxCalculator2024(taxpayer, income, itemized)
+calc = TaxCalculator2024(taxpayer, itemized)
 results = calc.calculate_all_taxes()
 
 print(f"Total Tax: ${results.total_tax_liability:,.2f}")
@@ -242,16 +259,16 @@ print(f"Effective Rate: {results.effective_total_rate*100:.2f}%")
 ### Example 2: With Capital Gains and Deductions
 
 ```python
-taxpayer = TaxpayerInfo(
+taxpayer = TaxUnit(
     filing_status=FilingStatus.MARRIED_JOINT,
-    age_primary=50,
-    age_spouse=48
-)
-
-income = IncomeData(
-    wages_w2=300000,
-    long_term_capital_gains=75000,
-    qualified_dividends=10000
+    primary=Person(age=50),
+    spouse=Person(age=48),
+    income=Income(
+        wages_w2=300000,
+        long_term_capital_gains=75000,
+        ordinary_dividends=10000,
+        qualified_dividends=10000
+    )
 )
 
 itemized = ItemizedDeductions(
@@ -260,7 +277,7 @@ itemized = ItemizedDeductions(
     cash_contributions_50pct_orgs=25000
 )
 
-calc = TaxCalculator2024(taxpayer, income, itemized)
+calc = TaxCalculator2024(taxpayer, itemized)
 results = calc.calculate_all_taxes()
 print(calc.generate_summary_report(results))
 ```
@@ -268,11 +285,13 @@ print(calc.generate_summary_report(results))
 ### Example 3: AMT Scenario with ISO Exercise
 
 ```python
-taxpayer = TaxpayerInfo(filing_status=FilingStatus.SINGLE, age_primary=35)
-
-income = IncomeData(
-    wages_w2=250000,
-    long_term_capital_gains=50000
+taxpayer = TaxUnit(
+    filing_status=FilingStatus.SINGLE,
+    primary=Person(age=35),
+    income=Income(
+        wages_w2=250000,
+        long_term_capital_gains=50000
+    )
 )
 
 itemized = ItemizedDeductions(
@@ -284,7 +303,7 @@ amt_adj = AMTAdjustments(
     iso_bargain_element=200000  # Large ISO exercise
 )
 
-calc = TaxCalculator2024(taxpayer, income, itemized, amt_adj)
+calc = TaxCalculator2024(taxpayer, itemized, amt_adj)
 results = calc.calculate_all_taxes()
 
 print(f"Regular Tax: ${results.total_federal_regular_tax:,.2f}")
@@ -294,7 +313,7 @@ print(f"Total Federal Tax: ${results.total_federal_tax:,.2f}")
 
 ## Important Notes
 
-1. **Above-the-Line Deductions**: This calculator assumes pre-tax contributions (401k, Traditional IRA, HSA) have already been subtracted from W-2 wages. If not, subtract them from `wages_w2` before input.
+1. **Above-the-Line Deductions**: Traditional IRA and student loan interest deductions are subtracted automatically via `Income.ira_deduction` and `Income.student_loan_interest_deduction`. Pre-tax workplace contributions (401k, HSA) should still be subtracted from `wages_w2` before input.
 
 2. **SALT Deduction Cap**: State and local tax deductions are capped at $10,000 ($5,000 if married filing separately) for federal taxes. The calculator automatically applies this cap.
 

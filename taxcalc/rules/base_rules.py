@@ -1,11 +1,14 @@
 from ..models import TaxUnit, Policy
 
 def compute_agi(unit: TaxUnit, policy: Policy) -> float:
-    # Sum all income sources
+    # Sum all income sources. Qualified dividends are a subset of ordinary
+    # dividends, so they are not added separately.
     gross_income = (
         unit.income.wages_w2
         + unit.income.interest
         + unit.income.ordinary_dividends
+        + unit.income.short_term_capital_gains
+        + unit.income.long_term_capital_gains
         + unit.income.self_employment
         + unit.income.rental
         + unit.income.other
@@ -24,13 +27,9 @@ def compute_taxable_income(unit: TaxUnit, policy: Policy, agi: float) -> float:
     # Standard deduction
     std_ded = policy.standard_deduction[unit.filing_status]
 
-    # Placeholder for itemized deductions (future expansion)
-    itemized = getattr(unit, "itemized_deductions", None)
-
-    # Choose the larger of standard or itemized
-    deduction = max(std_ded, itemized) if itemized is not None else std_ded
-
-    return max(0.0, agi - deduction)
+    # Itemized deductions are not part of TaxUnit, so only the standard
+    # deduction is available on this path.
+    return max(0.0, agi - std_ded)
 
 def compute_pre_credit_tax(unit: TaxUnit, policy: Policy, taxable_income: float) -> float:
     brackets = policy.brackets[unit.filing_status]

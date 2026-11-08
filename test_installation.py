@@ -16,8 +16,9 @@ def test_installation():
         print("✓ Test 1: Importing package...", end=" ")
         from taxcalc import (
             FilingStatus,
+            Person,
             TaxUnit,
-            IncomeData,
+            Income,
             ItemizedDeductions,
             TaxCalculator2024
         )
@@ -27,15 +28,15 @@ def test_installation():
         print("✓ Test 2: Creating data objects...", end=" ")
         taxpayer = TaxUnit(
             filing_status=FilingStatus.SINGLE,
-            primary_age=30
+            primary=Person(age=30),
+            income=Income(wages_w2=100000)
         )
-        income = IncomeData(wages_w2=100000)
         itemized = ItemizedDeductions()
         print("PASSED")
 
         # Test 3: Run calculation
         print("✓ Test 3: Running tax calculation...", end=" ")
-        calc = TaxCalculator2024(taxpayer, income, itemized)
+        calc = TaxCalculator2024(taxpayer, itemized)
         results = calc.calculate_all_taxes()
         print("PASSED")
 

@@ -35,8 +35,8 @@ class Income:
 
     # Investment income
     interest: float = 0.0
-    qualified_dividends: float = 0.0
-    ordinary_dividends: float = 0.0
+    qualified_dividends: float = 0.0   # Subset of ordinary_dividends
+    ordinary_dividends: float = 0.0    # Includes qualified_dividends
 
     # Capital gains
     short_term_capital_gains: float = 0.0
@@ -49,7 +49,7 @@ class Income:
 
     # Income adjustments
     ira_deduction: float = 0.0
-    student_loan_interest_deduction = 0.0
+    student_loan_interest_deduction: float = 0.0
 
 
     # Tax-exempt interest (affects AMT)
@@ -86,8 +86,8 @@ class TaxUnit:
         if self.filing_status in {
             FilingStatus.MARRIED_JOINT,
             FilingStatus.MARRIED_SEPARATE
-        } and self.spouse.age is None:
-            raise ValueError("Married filing statuses require spouse_age")
+        } and self.spouse is None:
+            raise ValueError("Married filing statuses require a spouse")
 
         if self.filing_status is FilingStatus.SINGLE and self.spouse is not None:
             raise ValueError("Single filers cannot have a spouse")
@@ -127,31 +127,6 @@ class Policy:
 
 
 
-
-
-@dataclass
-class IncomeData:
-    """All income sources"""
-    # Wage and salary income
-    wages_w2: float = 0.0
-
-    # Investment income
-    interest_income: float = 0.0
-    qualified_dividends: float = 0.0
-    ordinary_dividends: float = 0.0
-
-    # Capital gains
-    short_term_capital_gains: float = 0.0
-    long_term_capital_gains: float = 0.0
-
-    # Business and other income
-    self_employment_income: float = 0.0
-    rental_income: float = 0.0
-    other_income: float = 0.0
-
-    # Tax-exempt interest (affects AMT)
-    tax_exempt_interest: float = 0.0
-    private_activity_bond_interest: float = 0.0
 
 
 @dataclass

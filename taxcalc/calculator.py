@@ -8,7 +8,6 @@ including regular income tax, capital gains, AMT, NIIT, and California state tax
 from .models import (
     FilingStatus,
     TaxUnit,
-    IncomeData,
     ItemizedDeductions,
     AMTAdjustments,
     TaxResults,
@@ -25,33 +24,32 @@ class TaxCalculator:
     Default configuration uses 2024 tax year parameters.
     """
 
-    def __init__(self, taxpayer_info: TaxUnit, income: IncomeData,
+    def __init__(self, taxpayer_info: TaxUnit,
                  itemized_deductions: ItemizedDeductions, amt_adjustments: AMTAdjustments = None,
                  config: TaxConfig = None):
         """
-        Initialize tax calculator with taxpayer information and income/deduction data.
+        Initialize tax calculator with taxpayer information and deduction data.
 
         Args:
-            taxpayer_info: Basic taxpayer information and filing status
-            income: All income sources
+            taxpayer_info: TaxUnit containing filing status, people, and income
             itemized_deductions: Itemized deduction amounts by category
             amt_adjustments: AMT-specific adjustments (optional)
             config: Tax configuration (optional, defaults to 2024)
 
         Example:
             # Use default 2024 config
-            calc = TaxCalculator(taxpayer, income, itemized)
+            calc = TaxCalculator(taxpayer, itemized)
 
             # Use 2025 config
             from taxcalc import get_tax_config_2025
-            calc = TaxCalculator(taxpayer, income, itemized, config=get_tax_config_2025())
+            calc = TaxCalculator(taxpayer, itemized, config=get_tax_config_2025())
 
             # Use custom config
             custom_config = TaxConfig(tax_year=2026, federal_brackets={...})
-            calc = TaxCalculator(taxpayer, income, itemized, config=custom_config)
+            calc = TaxCalculator(taxpayer, itemized, config=custom_config)
         """
         self.taxpayer = taxpayer_info
-        self.income = income
+        self.income = taxpayer_info.income
         self.itemized = itemized_deductions
         self.amt_adj = amt_adjustments or AMTAdjustments()
         self.config = config or const.DEFAULT_TAX_CONFIG
@@ -141,27 +139,34 @@ class TaxCalculator:
         return results
 
     def _calculate_gross_income(self) -> float:
-        """Calculate total gross income from all sources."""
+        """Calculate total gross income from all sources.
+
+        Qualified dividends are a subset of ordinary dividends and are therefore
+        not added separately.
+        """
         return (
             self.income.wages_w2 +
-            self.income.interest_income +
-            self.income.qualified_dividends +
+            self.income.interest +
             self.income.ordinary_dividends +
             self.income.short_term_capital_gains +
             self.income.long_term_capital_gains +
-            self.income.self_employment_income +
-            self.income.rental_income +
-            self.income.other_income
+            self.income.self_employment +
+            self.income.rental +
+            self.income.other
         )
 
     def _calculate_agi(self, gross_income: float) -> float:
         """
         Calculate Adjusted Gross Income (AGI).
 
-        For simplicity, this implementation assumes above-the-line deductions
-        like retirement contributions have already been subtracted from wages.
+        Subtracts above-the-line adjustments (IRA deduction and student loan
+        interest) from gross income.
         """
-        return gross_income
+        adjustments = (
+            self.income.ira_deduction +
+            self.income.student_loan_interest_deduction
+        )
+        return max(0.0, gross_income - adjustments)
 
     def _calculate_standard_deduction(self) -> float:
         """
@@ -180,8 +185,8 @@ class TaxCalculator:
         if self.taxpayer.primary.blind:
             additional += per_person_amount
 
-        # Spouse (if married)
-        if is_married and self.taxpayer.filing_status == FilingStatus.MARRIED_JOINT:
+        # Spouse (if married, including married filing separately)
+        if is_married and self.taxpayer.spouse is not None:
             if self.taxpayer.spouse.age >= 65:
                 additional += per_person_amount
             if self.taxpayer.spouse.blind:
@@ -392,14 +397,14 @@ class TaxCalculator:
         """
         threshold = self.config.niit_threshold[self.taxpayer.filing_status]
 
-        # Calculate net investment income
+        # Calculate net investment income. Qualified dividends are already
+        # included in ordinary dividends, so they are not added separately.
         net_investment_income = (
-            self.income.interest_income +
-            self.income.qualified_dividends +
+            self.income.interest +
             self.income.ordinary_dividends +
             self.income.short_term_capital_gains +
             self.income.long_term_capital_gains +
-            self.income.rental_income  # Passive rental income
+            self.income.rental  # Passive rental income
         )
 
         # MAGI for most taxpayers equals AGI
@@ -421,7 +426,7 @@ class TaxCalculator:
         threshold = self.config.medicare_threshold[self.taxpayer.filing_status]
 
         # Calculate wages and self-employment income subject to Medicare tax
-        medicare_income = self.income.wages_w2 + self.income.self_employment_income * 0.9235
+        medicare_income = self.income.wages_w2 + self.income.self_employment * 0.9235
 
         if medicare_income <= threshold:
             return 0.0
@@ -522,14 +527,14 @@ INCOME SUMMARY
 {'='*80}
 
   Wages (W-2):                               ${self.income.wages_w2:>15,.2f}
-  Interest Income:                           ${self.income.interest_income:>15,.2f}
+  Interest Income:                           ${self.income.interest:>15,.2f}
   Dividends (Qualified):                     ${self.income.qualified_dividends:>15,.2f}
   Dividends (Ordinary):                      ${self.income.ordinary_dividends:>15,.2f}
   Short-Term Capital Gains:                  ${self.income.short_term_capital_gains:>15,.2f}
   Long-Term Capital Gains:                   ${self.income.long_term_capital_gains:>15,.2f}
-  Self-Employment Income:                    ${self.income.self_employment_income:>15,.2f}
-  Rental Income:                             ${self.income.rental_income:>15,.2f}
-  Other Income:                              ${self.income.other_income:>15,.2f}
+  Self-Employment Income:                    ${self.income.self_employment:>15,.2f}
+  Rental Income:                             ${self.income.rental:>15,.2f}
+  Other Income:                              ${self.income.other:>15,.2f}
                                              {'-'*30}
   TOTAL GROSS INCOME:                        ${results.gross_income:>15,.2f}
 
@@ -596,23 +601,23 @@ TOTAL TAX LIABILITY
         return report
 
 
-# Backward compatibility: TaxCalculator2024 is an alias for TaxCalculator with 2024 config
+# Convenience class: TaxCalculator2024 is a TaxCalculator that defaults to 2024 config
 class TaxCalculator2024(TaxCalculator):
     """
-    Tax calculator for 2024 tax year (backward compatible class).
+    Tax calculator for 2024 tax year.
 
-    This is an alias for TaxCalculator that defaults to 2024 configuration.
-    For new code, use TaxCalculator directly with an optional config parameter.
+    This is a convenience wrapper around TaxCalculator that defaults to the
+    2024 configuration. For new code, use TaxCalculator directly with an
+    optional config parameter.
     """
-    def __init__(self, taxpayer_info: TaxUnit, income: IncomeData,
+    def __init__(self, taxpayer_info: TaxUnit,
                  itemized_deductions: ItemizedDeductions, amt_adjustments: AMTAdjustments = None,
                  use_2025_sdi_rate: bool = False):
         """
-        Initialize tax calculator for 2024 (backward compatible signature).
+        Initialize tax calculator for 2024.
 
         Args:
-            taxpayer_info: Basic taxpayer information and filing status
-            income: All income sources
+            taxpayer_info: TaxUnit containing filing status, people, and income
             itemized_deductions: Itemized deduction amounts by category
             amt_adjustments: AMT-specific adjustments (optional)
             use_2025_sdi_rate: Use 2025 California SDI rate (1.2%) instead of 2024 rate (1.1%)
@@ -621,4 +626,4 @@ class TaxCalculator2024(TaxCalculator):
         if use_2025_sdi_rate:
             config.ca_sdi_rate = const.CA_SDI_RATE_2025
 
-        super().__init__(taxpayer_info, income, itemized_deductions, amt_adjustments, config)
+        super().__init__(taxpayer_info, itemized_deductions, amt_adjustments, config)

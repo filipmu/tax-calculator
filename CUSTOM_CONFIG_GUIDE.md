@@ -14,21 +14,24 @@ The tax calculator now supports flexible tax configurations, allowing you to:
 
 ```python
 from taxcalc import (
-    FilingStatus, TaxpayerInfo, IncomeData, ItemizedDeductions,
+    FilingStatus, Person, TaxUnit, Income, ItemizedDeductions,
     TaxCalculator, get_tax_config_2024, get_tax_config_2025
 )
 
 # Define your scenario
-taxpayer = TaxpayerInfo(filing_status=FilingStatus.SINGLE, age_primary=30)
-income = IncomeData(wages_w2=150000)
+taxpayer = TaxUnit(
+    filing_status=FilingStatus.SINGLE,
+    primary=Person(age=30),
+    income=Income(wages_w2=150000)
+)
 itemized = ItemizedDeductions()
 
 # Use 2024 tax rules (default)
-calc_2024 = TaxCalculator(taxpayer, income, itemized)
+calc_2024 = TaxCalculator(taxpayer, itemized)
 results_2024 = calc_2024.calculate_all_taxes()
 
 # Use 2025 tax rules
-calc_2025 = TaxCalculator(taxpayer, income, itemized, config=get_tax_config_2025())
+calc_2025 = TaxCalculator(taxpayer, itemized, config=get_tax_config_2025())
 results_2025 = calc_2025.calculate_all_taxes()
 
 # Compare
@@ -47,7 +50,7 @@ config.salt_cap = 15000  # Increase SALT cap from $10K to $15K
 config.ca_sdi_rate = 0.015  # Increase CA SDI rate to 1.5%
 
 # Use the modified config
-calc = TaxCalculator(taxpayer, income, itemized, config=config)
+calc = TaxCalculator(taxpayer, itemized, config=config)
 results = calc.calculate_all_taxes()
 ```
 
@@ -92,7 +95,7 @@ custom_config = TaxConfig(
     # ... etc
 )
 
-calc = TaxCalculator(taxpayer, income, itemized, config=custom_config)
+calc = TaxCalculator(taxpayer, itemized, config=custom_config)
 ```
 
 ## TaxConfig Parameters
@@ -150,7 +153,7 @@ configs = {
 
 results = {}
 for year, config in configs.items():
-    calc = TaxCalculator(taxpayer, income, itemized, config=config)
+    calc = TaxCalculator(taxpayer, itemized, config=config)
     results[year] = calc.calculate_all_taxes()
 
 for year in results:
@@ -162,13 +165,13 @@ for year in results:
 ```python
 # Base case: Current law
 base_config = get_tax_config_2024()
-base_calc = TaxCalculator(taxpayer, income, itemized, config=base_config)
+base_calc = TaxCalculator(taxpayer, itemized, config=base_config)
 base_results = base_calc.calculate_all_taxes()
 
 # Scenario: SALT cap removed
 no_salt_cap_config = get_tax_config_2024()
 no_salt_cap_config.salt_cap = float('inf')
-no_salt_calc = TaxCalculator(taxpayer, income, itemized, config=no_salt_cap_config)
+no_salt_calc = TaxCalculator(taxpayer, itemized, config=no_salt_cap_config)
 no_salt_results = no_salt_calc.calculate_all_taxes()
 
 # Compare
@@ -213,7 +216,7 @@ scenarios = {
 }
 
 for name, config in scenarios.items():
-    calc = TaxCalculator(taxpayer, income, itemized, config=config)
+    calc = TaxCalculator(taxpayer, itemized, config=config)
     results = calc.calculate_all_taxes()
     print(f"{name:20} ${results.total_tax_liability:>12,.2f}")
 ```
@@ -226,13 +229,13 @@ Existing code continues to work:
 # Old way (still works)
 from taxcalc import TaxCalculator2024
 
-calc = TaxCalculator2024(taxpayer, income, itemized)
+calc = TaxCalculator2024(taxpayer, itemized)
 results = calc.calculate_all_taxes()
 
 # New way (more flexible)
 from taxcalc import TaxCalculator
 
-calc = TaxCalculator(taxpayer, income, itemized)  # Uses 2024 by default
+calc = TaxCalculator(taxpayer, itemized)  # Uses 2024 by default
 results = calc.calculate_all_taxes()
 ```
 
@@ -270,8 +273,11 @@ See these files for complete examples:
 4. **Test your custom configs** with simple scenarios first:
    ```python
    # Simple test scenario
-   test_taxpayer = TaxpayerInfo(filing_status=FilingStatus.SINGLE, age_primary=30)
-   test_income = IncomeData(wages_w2=100000)
+   test_taxpayer = TaxUnit(
+       filing_status=FilingStatus.SINGLE,
+       primary=Person(age=30),
+       income=Income(wages_w2=100000)
+   )
    test_itemized = ItemizedDeductions()
    ```
 
