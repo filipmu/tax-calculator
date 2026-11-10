@@ -1,4 +1,5 @@
 from ..models import TaxUnit, Policy
+from ..params import param
 
 def compute_agi(unit: TaxUnit, policy: Policy) -> float:
     # Sum all income sources. Qualified dividends are a subset of ordinary
@@ -25,14 +26,14 @@ def compute_agi(unit: TaxUnit, policy: Policy) -> float:
 
 def compute_taxable_income(unit: TaxUnit, policy: Policy, agi: float) -> float:
     # Standard deduction
-    std_ded = policy.standard_deduction[unit.filing_status]
+    std_ded = param(policy, "standard_deduction", unit.filing_status.value)
 
     # Itemized deductions are not part of TaxUnit, so only the standard
     # deduction is available on this path.
     return max(0.0, agi - std_ded)
 
 def compute_pre_credit_tax(unit: TaxUnit, policy: Policy, taxable_income: float) -> float:
-    brackets = policy.brackets[unit.filing_status]
+    brackets = param(policy, "brackets", unit.filing_status.value)
     tax = 0.0
     remaining = taxable_income
     last_upper_limit = 0.0
@@ -61,7 +62,7 @@ def compute_credits(unit: TaxUnit, policy: Policy, pre_credit_tax: float) -> flo
     qualifying_children = sum(1 for d in unit.dependents if d.age < 17)
 
     # Simple, non-refundable child credit
-    ctc = qualifying_children * policy.child_credit_amount
+    ctc = qualifying_children * param(policy, "child_credit_amount")
 
     # Non-refundable: cannot exceed pre-credit tax
     return min(ctc, pre_credit_tax)

@@ -18,14 +18,30 @@ from .models import (
     AMTAdjustments,
     TaxResult,
     TaxResults,
+    ReturnResult,
     Policy,
     Parameter,
     TaxConfig
 )
 
+from .params import (
+    PARAMETERS,
+    AmbiguousVersionError,
+    AvailabilityError,
+    MissingParameterError,
+    NoEffectiveVersionError,
+    build_policy,
+    param,
+    resolve,
+    since,
+    yearly,
+)
+
+from .rules.rulesets import get_ruleset
+
 from .calculator import TaxCalculator, TaxCalculator2024
 
-from .pipeline import compute_tax
+from .pipeline import compute_tax, compute_return
 
 from .constants import (
     get_tax_config_2024,
@@ -44,11 +60,26 @@ __all__ = [
     "AMTAdjustments",
     "TaxResults",
     "TaxResult",
+    "ReturnResult",
     "Policy",
     "Parameter",
     "TaxConfig",
+    # Parameters
+    "PARAMETERS",
+    "build_policy",
+    "param",
+    "resolve",
+    "yearly",
+    "since",
+    "NoEffectiveVersionError",
+    "AmbiguousVersionError",
+    "MissingParameterError",
+    "AvailabilityError",
+    # Rules
+    "get_ruleset",
     # Calculators
     "compute_tax",
+    "compute_return",
     "TaxCalculator",
     "TaxCalculator2024",
     # Config helpers

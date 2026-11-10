@@ -8,7 +8,7 @@ including taxpayer information, income sources, deductions, and results.
 from dataclasses import dataclass, field
 from datetime import date
 from enum import Enum
-from typing import Any, List, Dict, Tuple
+from typing import Any, List, Dict, Mapping, Tuple
 
 
 class FilingStatus(Enum):
@@ -105,21 +105,24 @@ class TaxUnit:
                 raise ValueError("Dependent ages must be non-negative")
 
 
-@dataclass
+@dataclass(frozen=True)
 class Parameter:
-    """A single tax law parameter, identified by name, that varies over an
-    effective date range and optionally by a selector key.
+    """One version of a tax law parameter, valid over an effective date range.
 
     `value` is a dict of lists: each key selects a variant of the parameter
     (e.g., a filing status), and each list holds the parameter's values for
     that key. Brackets are lists of (rate, upper_limit) tuples, rate first
     (matching IRS table order), with the top bracket's upper_limit being
-    float('inf'). Single-value parameters are one-element lists. Other
-    multi-value parameters (e.g., phase-out steps) can hold any list items.
+    float('inf'). Single-value parameters use the key "default" with a
+    one-element list. Other multi-value parameters (e.g., phase-out steps)
+    can hold any list items.
+
+    The parameter's name is its key in the catalog (see ``params.PARAMETERS``),
+    so it is not repeated here. Versions are resolved to plain values by
+    ``params.resolve``; rules never see ``Parameter`` objects.
 
     Example:
         Parameter(
-            name="capital_gains_brackets",
             effective=(date(2024, 1, 1), date(2024, 12, 31)),
             value={
                 "single": [(0.0, 47025), (0.15, 518900), (0.20, float('inf'))],
@@ -127,41 +130,33 @@ class Parameter:
             },
         )
         Parameter(
-            name="standard_deduction",
             effective=(date(2024, 1, 1), date.max),   # still in effect
             value={"single": [14600], "married_joint": [29200]},
         )
     """
-    name: str  # name found on tax form, like "capital_gains_brackets", "standard_deduction"
     effective: Tuple[date, date]  # (start_date, end_date), inclusive; date.max = open-ended
     value: Dict[str, List[Any]]  # {selector key: [values]}, e.g. {"single": [(rate, upper_limit), ...]}
 
     def __post_init__(self):
         start, end = self.effective
         if start > end:
-            raise ValueError(f"Parameter '{self.name}': effective start date is after end date")
-
-    def is_effective(self, on: date) -> bool:
-        """Return True if `on` falls within the effective range (inclusive)."""
-        start, end = self.effective
-        return start <= on <= end
-    
+            raise ValueError("Parameter effective start date is after end date")
 
 
-@dataclass
+@dataclass(frozen=True)
 class Policy:
+    """One tax for one jurisdiction and tax year, with resolved parameters.
+
+    A policy is a single tax (e.g. "income", "niit"), not a whole tax return.
+    ``parameters`` holds plain, resolved values for the tax year - never
+    ``Parameter`` objects - so rules can read them directly.
+    """
     year: int
-    jurisdiction: str  # e.g., "federal", "MN"
+    jurisdiction: str  # e.g. "federal", "MN"
+    tax: str           # e.g. "income", "niit"
 
-    # Standard deduction by filing status
-    standard_deduction: Dict[FilingStatus, float]
-
-    # Brackets: list of (rate, upper_limit)
-    # Example: [(0.10, 11000), (0.12, 44725), ...]
-    brackets: Dict[FilingStatus, List[Tuple[float, float]]]
-
-    # Placeholder for credits (we'll expand later)
-    child_credit_amount: float = 0.0
+    # Resolved parameter values for this tax year, keyed by parameter name.
+    parameters: Mapping[str, Any] = field(default_factory=dict)
 
 
 
@@ -282,6 +277,14 @@ class TaxResult:
     pre_credit_tax: float
     total_credits: float
     net_tax: float
+
+@dataclass
+class ReturnResult:
+    """Result of combining several tax policies for one return."""
+    agi: float
+    parts: Dict[str, float]   # tax name -> tax amount on a comparable base
+    detail: Dict[str, Any]    # tax name -> detailed result (e.g. TaxResult)
+    total_tax: float
 
 @dataclass
 class TaxResults:
