@@ -262,6 +262,10 @@ def build_policy(
 ) -> Policy:
     """Resolve every parameter for (jurisdiction, tax, year) into a Policy.
 
+    Parameters introduced in a later year are absent from earlier policies
+    (they did not exist yet). A parameter whose data stops before the
+    requested year is an error, because a new version is missing.
+
     `overrides` replaces a resolved value wholesale, for what-if analysis.
     Overriding a name that is not in the catalog is an error.
     """
@@ -288,12 +292,31 @@ def build_policy(
     for name in names:
         if name in overrides:
             resolved[name] = overrides[name]
-        else:
+            continue
+
+        versions = catalog[(jurisdiction, tax, name)]
+        try:
             resolved[name] = resolve(
-                catalog[(jurisdiction, tax, name)],
+                versions,
                 year,
                 label=f"{jurisdiction}/{tax}/{name}",
             )
+        except NoEffectiveVersionError:
+            earliest = min(version.effective[0] for version in versions)
+            if year < earliest.year:
+                # The parameter did not exist yet in this tax year, so it is
+                # simply absent from the policy. A rule that needs it will
+                # fail in param() with a clear message.
+                continue
+            # The parameter exists but its data stops before this year: a new
+            # version is missing.
+            raise
+
+    if not resolved:
+        raise NoEffectiveVersionError(
+            f"{jurisdiction}/{tax}: no parameters are effective for tax "
+            f"year {year}"
+        )
 
     return Policy(
         year=year,

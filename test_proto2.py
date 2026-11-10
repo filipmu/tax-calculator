@@ -22,6 +22,7 @@ from taxcalc import (
     get_ruleset,
     param,
     resolve,
+    since,
     yearly,
 )
 from taxcalc.params import PARAMETERS, validate
@@ -107,6 +108,38 @@ def test_unknown_override() -> None:
         raise AssertionError("expected MissingParameterError for unknown override")
 
 
+def test_later_parameter_is_absent_earlier() -> None:
+    catalog = {
+        ("federal", "income", "standard_deduction"): [
+            yearly(2023, {"single": [1]}),
+            yearly(2024, {"single": [2]}),
+        ],
+        ("federal", "income", "phaseout_threshold"): [
+            since(2025, {"default": [400000]}),
+        ],
+    }
+
+    p2024 = build_policy("federal", "income", 2024, catalog=catalog)
+    assert "phaseout_threshold" not in p2024.parameters
+    assert param(p2024, "standard_deduction", "single") == 2
+
+    # 2025 has no standard deduction version yet: a missing year, not a
+    # not-yet-existing parameter, so it must raise.
+    try:
+        build_policy("federal", "income", 2025, catalog=catalog)
+    except NoEffectiveVersionError:
+        pass
+    else:
+        raise AssertionError("expected missing 2025 standard deduction to raise")
+
+    catalog[("federal", "income", "standard_deduction")].append(
+        yearly(2025, {"single": [3]})
+    )
+    p2025 = build_policy("federal", "income", 2025, catalog=catalog)
+    assert param(p2025, "phaseout_threshold") == 400000
+    assert param(p2025, "standard_deduction", "single") == 3
+
+
 def test_income_2023_regression() -> None:
     result = compute_tax(make_taxpayer(), build_policy("federal", "income", 2023))
     assert result.pre_credit_tax == 112121.0
@@ -165,6 +198,7 @@ def main() -> None:
         test_build_policy,
         test_missing_parameter,
         test_unknown_override,
+        test_later_parameter_is_absent_earlier,
         test_income_2023_regression,
         test_income_2024,
         test_niit,
