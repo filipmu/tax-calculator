@@ -258,7 +258,7 @@ class TaxCalculator:
         tax = 0.0
         previous_bracket = 0
 
-        for bracket_top, rate in brackets:
+        for rate, bracket_top in brackets:
             if ordinary_taxable_income <= previous_bracket:
                 break
 
@@ -297,7 +297,7 @@ class TaxCalculator:
         remaining_preferential = preferential_income
 
         previous_bracket = 0
-        for bracket_top, rate in brackets:
+        for rate, bracket_top in brackets:
             if remaining_preferential <= 0:
                 break
 
@@ -486,7 +486,7 @@ class TaxCalculator:
         tax = 0.0
         previous_bracket = 0
 
-        for bracket_top, rate in brackets:
+        for rate, bracket_top in brackets:
             if taxable_income <= previous_bracket:
                 break
 

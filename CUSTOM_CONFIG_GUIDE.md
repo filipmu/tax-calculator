@@ -63,21 +63,21 @@ from taxcalc import TaxConfig, FilingStatus
 custom_config = TaxConfig(
     tax_year=2026,
 
-    # Federal brackets: {FilingStatus: [(upper_limit, rate), ...]}
+    # Federal brackets: {FilingStatus: [(rate, upper_limit), ...]}
     federal_brackets={
         FilingStatus.SINGLE: [
-            (12000, 0.10),
-            (50000, 0.12),
-            (100000, 0.22),
-            (200000, 0.24),
-            (float('inf'), 0.35)
+            (0.10, 12000),
+            (0.12, 50000),
+            (0.22, 100000),
+            (0.24, 200000),
+            (0.35, float('inf'))
         ],
         FilingStatus.MARRIED_JOINT: [
-            (24000, 0.10),
-            (100000, 0.12),
-            (200000, 0.22),
-            (400000, 0.24),
-            (float('inf'), 0.35)
+            (0.10, 24000),
+            (0.12, 100000),
+            (0.22, 200000),
+            (0.24, 400000),
+            (0.35, float('inf'))
         ],
         # ... other filing statuses
     },
@@ -101,7 +101,7 @@ calc = TaxCalculator(taxpayer, itemized, config=custom_config)
 ## TaxConfig Parameters
 
 ### Federal Income Tax
-- `federal_brackets`: Progressive tax brackets by filing status
+- `federal_brackets`: Progressive tax brackets by filing status, as (rate, upper_limit) tuples
 - `standard_deductions`: Standard deduction amounts by filing status
 - `additional_deduction_married`: Additional deduction for age/blindness (married)
 - `additional_deduction_unmarried`: Additional deduction for age/blindness (unmarried)
@@ -200,8 +200,8 @@ for status in FilingStatus:
 # Adjust federal brackets
 for status in FilingStatus:
     config_2026.federal_brackets[status] = [
-        (int(bracket * inflation_rate) if bracket != float('inf') else float('inf'), rate)
-        for bracket, rate in config_2026.federal_brackets[status]
+        (rate, int(upper_limit * inflation_rate) if upper_limit != float('inf') else float('inf'))
+        for rate, upper_limit in config_2026.federal_brackets[status]
     ]
 ```
 
@@ -256,11 +256,11 @@ See these files for complete examples:
 
 2. **Handle infinity carefully** in brackets:
    ```python
-   # The last bracket always uses infinity
+   # Brackets are (rate, upper_limit); the last bracket always uses infinity
    federal_brackets = [
-       (50000, 0.10),
-       (100000, 0.20),
-       (float('inf'), 0.30)  # "All income above $100K"
+       (0.10, 50000),
+       (0.20, 100000),
+       (0.30, float('inf'))  # "All income above $100K"
    ]
    ```
 

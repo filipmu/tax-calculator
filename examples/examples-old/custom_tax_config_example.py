@@ -88,8 +88,8 @@ def example_2_custom_brackets():
     # Hypothetical: Adjust federal tax brackets (3% inflation adjustment)
     for status in FilingStatus:
         custom_config.federal_brackets[status] = [
-            (int(bracket * 1.03) if bracket != float('inf') else float('inf'), rate)
-            for bracket, rate in custom_config.federal_brackets[status]
+            (rate, int(upper_limit * 1.03) if upper_limit != float('inf') else float('inf'))
+            for rate, upper_limit in custom_config.federal_brackets[status]
         ]
 
     # Hypothetical: Increase SALT cap to $15,000
@@ -192,10 +192,10 @@ def example_4_custom_from_scratch():
         tax_year=2024,
         # Flat 20% federal tax
         federal_brackets={
-            FilingStatus.SINGLE: [(float('inf'), 0.20)],
-            FilingStatus.MARRIED_JOINT: [(float('inf'), 0.20)],
-            FilingStatus.MARRIED_SEPARATE: [(float('inf'), 0.20)],
-            FilingStatus.HEAD_OF_HOUSEHOLD: [(float('inf'), 0.20)],
+            FilingStatus.SINGLE: [(0.20, float('inf'))],
+            FilingStatus.MARRIED_JOINT: [(0.20, float('inf'))],
+            FilingStatus.MARRIED_SEPARATE: [(0.20, float('inf'))],
+            FilingStatus.HEAD_OF_HOUSEHOLD: [(0.20, float('inf'))],
         },
         # $50K standard deduction for everyone
         standard_deductions={
@@ -206,10 +206,10 @@ def example_4_custom_from_scratch():
         },
         # 0% capital gains tax (no preferential treatment)
         ltcg_brackets={
-            FilingStatus.SINGLE: [(float('inf'), 0.00)],
-            FilingStatus.MARRIED_JOINT: [(float('inf'), 0.00)],
-            FilingStatus.MARRIED_SEPARATE: [(float('inf'), 0.00)],
-            FilingStatus.HEAD_OF_HOUSEHOLD: [(float('inf'), 0.00)],
+            FilingStatus.SINGLE: [(0.00, float('inf'))],
+            FilingStatus.MARRIED_JOINT: [(0.00, float('inf'))],
+            FilingStatus.MARRIED_SEPARATE: [(0.00, float('inf'))],
+            FilingStatus.HEAD_OF_HOUSEHOLD: [(0.00, float('inf'))],
         },
         # Zero AMT (simplified)
         amt_exemption={status: 999999999 for status in FilingStatus},
@@ -220,10 +220,10 @@ def example_4_custom_from_scratch():
         medicare_threshold={status: 999999999 for status in FilingStatus},
         # Flat 10% California tax
         ca_brackets={
-            FilingStatus.SINGLE: [(float('inf'), 0.10)],
-            FilingStatus.MARRIED_JOINT: [(float('inf'), 0.10)],
-            FilingStatus.MARRIED_SEPARATE: [(float('inf'), 0.10)],
-            FilingStatus.HEAD_OF_HOUSEHOLD: [(float('inf'), 0.10)],
+            FilingStatus.SINGLE: [(0.10, float('inf'))],
+            FilingStatus.MARRIED_JOINT: [(0.10, float('inf'))],
+            FilingStatus.MARRIED_SEPARATE: [(0.10, float('inf'))],
+            FilingStatus.HEAD_OF_HOUSEHOLD: [(0.10, float('inf'))],
         },
         ca_standard_deductions={
             FilingStatus.SINGLE: 50000,

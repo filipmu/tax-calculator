@@ -35,20 +35,21 @@ def compute_pre_credit_tax(unit: TaxUnit, policy: Policy, taxable_income: float)
     brackets = policy.brackets[unit.filing_status]
     tax = 0.0
     remaining = taxable_income
-    last_threshold = 0.0
+    last_upper_limit = 0.0
 
-    for rate, threshold in brackets:
+    for rate, upper_limit in brackets:
         if remaining <= 0:
             break
 
         # Income taxed in this bracket
-        bracket_amount = min(remaining, threshold - last_threshold)
+        bracket_amount = min(remaining, upper_limit - last_upper_limit)
 
         tax += bracket_amount * rate
         remaining -= bracket_amount
-        last_threshold = threshold
+        last_upper_limit = upper_limit
 
-    # If income exceeds the last threshold, tax the remainder at the top rate
+    # If income exceeds the last bracket's upper limit, tax the remainder
+    # at the top rate
     if remaining > 0:
         top_rate = brackets[-1][0]
         tax += remaining * top_rate

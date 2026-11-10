@@ -19,6 +19,7 @@ from .models import (
     TaxResult,
     TaxResults,
     Policy,
+    Parameter,
     TaxConfig
 )
 
@@ -44,6 +45,7 @@ __all__ = [
     "TaxResults",
     "TaxResult",
     "Policy",
+    "Parameter",
     "TaxConfig",
     # Calculators
     "compute_tax",

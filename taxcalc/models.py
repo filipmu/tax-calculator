@@ -6,8 +6,9 @@ including taxpayer information, income sources, deductions, and results.
 """
 
 from dataclasses import dataclass, field
+from datetime import date
 from enum import Enum
-from typing import List, Dict, Tuple
+from typing import Any, List, Dict, Tuple
 
 
 class FilingStatus(Enum):
@@ -58,7 +59,7 @@ class Income:
 
 @dataclass
 class TaxUnit:
-    """Basic taxpayer unit information"""
+    """Taxpayer unit information - defines 'who' provides input and is taxed"""
     filing_status: FilingStatus
     primary: Person
     income: Income 
@@ -104,9 +105,47 @@ class TaxUnit:
                 raise ValueError("Dependent ages must be non-negative")
 
 
+@dataclass
+class Parameter:
+    """A single tax law parameter, identified by name, that varies over an
+    effective date range and optionally by a selector key.
 
+    `value` is a dict of lists: each key selects a variant of the parameter
+    (e.g., a filing status), and each list holds the parameter's values for
+    that key. Brackets are lists of (rate, upper_limit) tuples, rate first
+    (matching IRS table order), with the top bracket's upper_limit being
+    float('inf'). Single-value parameters are one-element lists. Other
+    multi-value parameters (e.g., phase-out steps) can hold any list items.
 
+    Example:
+        Parameter(
+            name="capital_gains_brackets",
+            effective=(date(2024, 1, 1), date(2024, 12, 31)),
+            value={
+                "single": [(0.0, 47025), (0.15, 518900), (0.20, float('inf'))],
+                "married_joint": [(0.0, 94050), (0.15, 583750), (0.20, float('inf'))],
+            },
+        )
+        Parameter(
+            name="standard_deduction",
+            effective=(date(2024, 1, 1), date.max),   # still in effect
+            value={"single": [14600], "married_joint": [29200]},
+        )
+    """
+    name: str  # name found on tax form, like "capital_gains_brackets", "standard_deduction"
+    effective: Tuple[date, date]  # (start_date, end_date), inclusive; date.max = open-ended
+    value: Dict[str, List[Any]]  # {selector key: [values]}, e.g. {"single": [(rate, upper_limit), ...]}
 
+    def __post_init__(self):
+        start, end = self.effective
+        if start > end:
+            raise ValueError(f"Parameter '{self.name}': effective start date is after end date")
+
+    def is_effective(self, on: date) -> bool:
+        """Return True if `on` falls within the effective range (inclusive)."""
+        start, end = self.effective
+        return start <= on <= end
+    
 
 
 @dataclass
@@ -117,11 +156,11 @@ class Policy:
     # Standard deduction by filing status
     standard_deduction: Dict[FilingStatus, float]
 
-    # Brackets: list of (rate, threshold)
+    # Brackets: list of (rate, upper_limit)
     # Example: [(0.10, 11000), (0.12, 44725), ...]
     brackets: Dict[FilingStatus, List[Tuple[float, float]]]
 
-    # Placeholder for credits (we’ll expand later)
+    # Placeholder for credits (we'll expand later)
     child_credit_amount: float = 0.0
 
 
@@ -176,7 +215,7 @@ class TaxConfig:
     Tax configuration containing all rates, brackets, and thresholds.
 
     This allows you to customize tax calculations for different years or scenarios.
-    All brackets are tuples of (upper_limit, rate) for each filing status.
+    All brackets are tuples of (rate, upper_limit) for each filing status.
 
     Example:
         # Create custom config for 2025
@@ -184,8 +223,8 @@ class TaxConfig:
             tax_year=2025,
             federal_brackets={
                 FilingStatus.SINGLE: [
-                    (11925, 0.10),
-                    (48475, 0.12),
+                    (0.10, 11925),
+                    (0.12, 48475),
                     # ... etc
                 ]
             }
@@ -194,7 +233,7 @@ class TaxConfig:
     # Metadata
     tax_year: int = 2024
 
-    # Federal tax brackets: {FilingStatus: [(upper_limit, rate), ...]}
+    # Federal tax brackets: {FilingStatus: [(rate, upper_limit), ...]}
     federal_brackets: dict = field(default_factory=dict)
 
     # Federal standard deductions: {FilingStatus: amount}
@@ -202,7 +241,7 @@ class TaxConfig:
     additional_deduction_married: float = 1550
     additional_deduction_unmarried: float = 1950
 
-    # Long-term capital gains brackets: {FilingStatus: [(upper_limit, rate), ...]}
+    # Long-term capital gains brackets: {FilingStatus: [(rate, upper_limit), ...]}
     ltcg_brackets: dict = field(default_factory=dict)
 
     # AMT parameters
@@ -219,7 +258,7 @@ class TaxConfig:
     medicare_additional_rate: float = 0.009
     medicare_threshold: dict = field(default_factory=dict)
 
-    # California state tax brackets: {FilingStatus: [(upper_limit, rate), ...]}
+    # California state tax brackets: {FilingStatus: [(rate, upper_limit), ...]}
     ca_brackets: dict = field(default_factory=dict)
     ca_standard_deductions: dict = field(default_factory=dict)
     ca_mental_health_threshold: float = 1000000
