@@ -89,6 +89,10 @@ repository and prevents example values from leaking into a real calculation.
 Using a non-authoritative pack emits a warning, and `ReturnResult` carries
 `pack_name`, `authoritative`, and `provenance` alongside the numbers.
 
+A runnable template lives in
+[`examples/private_law/`](examples/private_law/README.md); run
+`python examples/private_law_demo.py` to see the whole flow.
+
 ## Current coverage
 
 | Area | Status |
@@ -156,7 +160,9 @@ taxcalc/
   constants.py       # legacy constants and TaxConfig data
 examples/
   Test policy data changes.ipynb
-  examples-old/      # upstream legacy notebooks and scripts
+  private_law/        # template for a private pack (params, rules, PACK)
+  private_law_demo.py # runnable demo of the private pack
+  examples-old/       # upstream legacy notebooks and scripts
 ADDING_A_TAX_YEAR.md
 test_proto2.py
 test_installation.py
@@ -185,6 +191,8 @@ replacement (no leakage), pluggable add-on taxes, and `load_pack`.
 - [`ADDING_A_TAX_YEAR.md`](ADDING_A_TAX_YEAR.md) — step-by-step guide to adding
   a tax year when parameters and rules change, including where private law data
   lives.
+- [`examples/private_law/README.md`](examples/private_law/README.md) — a
+  runnable private-pack template and a checklist for making it authoritative.
 - Module docstrings in `taxcalc/pack.py` and `taxcalc/example_pack.py` — the
   law-pack contract and the private-pack template.
 
