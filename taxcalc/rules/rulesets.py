@@ -2,9 +2,10 @@ from __future__ import annotations  # prevents circular import crashes
 
 from dataclasses import dataclass
 from datetime import date
-from typing import Callable, Dict, List, Tuple
+from typing import Callable, Dict, List, Optional, Tuple
 
 from ..models import TaxUnit, Policy
+from ..pack import LawPack, default_pack
 from ..params import NoEffectiveVersionError, select, validate
 from . import base_rules
 
@@ -45,18 +46,21 @@ RULE_SETS: Dict[RuleKey, List[RuleSet]] = {
 # Rule lookup - no fallback
 # -----------------------------
 
-def get_ruleset(policy: Policy) -> RuleSet:
+def get_ruleset(policy: Policy, *, pack: Optional[LawPack] = None) -> RuleSet:
     """Return the single rule set effective for the policy's tax year.
 
+    Rule sets come from ``pack`` when given, otherwise from the illustrative
+    example pack. There is no fallback between packs or between years.
+
     Raises ``NoEffectiveVersionError`` when no rule set covers the year.
-    There is intentionally no carry-forward.
     """
+    rule_sets = pack.rule_sets if pack is not None else default_pack().rule_sets
     key = (policy.jurisdiction, policy.tax)
     try:
-        versions = RULE_SETS[key]
+        versions = rule_sets[key]
     except KeyError:
         available = ", ".join(
-            f"{j}/{t}" for (j, t) in sorted(RULE_SETS)
+            f"{j}/{t}" for (j, t) in sorted(rule_sets)
         ) or "(none)"
         raise NoEffectiveVersionError(
             f"{policy.jurisdiction}/{policy.tax}: no rule sets are defined. "

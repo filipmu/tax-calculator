@@ -33,6 +33,52 @@ Two useful conventions:
 
 ---
 
+## Where the law data lives (law packs)
+
+The package ships one **law pack**, `EXAMPLE_PACK` in
+`taxcalc/example_pack.py`. Its numbers are in `taxcalc/params.py` and its rule
+wiring is in `taxcalc/rules/rulesets.py`. It is illustrative and **not
+authoritative**; using it emits a warning.
+
+Private parameters and rules live in a separate module outside the package:
+
+```python
+# my_private_law/pack.py
+from taxcalc import LawPack
+from taxcalc.pipeline import federal_combine
+from taxcalc.rules.niit_rules import compute_niit
+
+from .params import PARAMETERS      # your own catalog
+from .rules import RULE_SETS        # your own rule wiring
+
+PACK = LawPack(
+    name="my-private-law",
+    authoritative=True,
+    provenance="My reviewed assumptions, 2026-11-10.",
+    catalog=PARAMETERS,
+    rule_sets=RULE_SETS,
+    addon_taxes={"niit": compute_niit},
+    combiners={"federal": federal_combine},
+)
+```
+
+Then pass it explicitly at every entry point:
+
+```python
+from taxcalc import build_policy, compute_return, load_pack
+
+pack = load_pack("my_private_law.pack")
+policy = build_policy("federal", "income", 2025, pack=pack)
+result = compute_return(unit, {"income": policy}, pack=pack)
+```
+
+There is no global active pack and no fallback: the pack you pass is the only
+law used for that call. This guide edits `taxcalc/params.py` and
+`taxcalc/rules/` because that is where the example pack lives; with a private
+pack, make the same edits in your own modules.
+
+---
+
 ## Step 1 — Decide what changed
 
 Ask two questions:

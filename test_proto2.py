@@ -6,11 +6,15 @@ Run with:
 """
 
 from datetime import date
+import warnings
 
 from taxcalc import (
     AmbiguousVersionError,
+    AvailabilityError,
+    EXAMPLE_PACK,
     FilingStatus,
     Income,
+    LawPack,
     MissingParameterError,
     NoEffectiveVersionError,
     Person,
@@ -20,6 +24,7 @@ from taxcalc import (
     compute_return,
     compute_tax,
     get_ruleset,
+    load_pack,
     param,
     resolve,
     since,
@@ -190,6 +195,125 @@ def test_override_changes_result() -> None:
     assert changed.net_tax == base.net_tax - 4000.0
 
 
+def test_example_pack_is_not_authoritative() -> None:
+    assert EXAMPLE_PACK.authoritative is False
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        compute_tax(make_taxpayer(), build_policy("federal", "income", 2024))
+    assert any("not authoritative" in str(item.message) for item in caught)
+
+
+def test_return_carries_pack_identity() -> None:
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = compute_return(
+            make_taxpayer(),
+            {"income": build_policy("federal", "income", 2024)},
+        )
+    assert result.pack_name == EXAMPLE_PACK.name
+    assert result.authoritative is False
+    assert result.provenance == EXAMPLE_PACK.provenance
+
+
+def test_authoritative_pack_does_not_warn() -> None:
+    pack = LawPack(
+        name="private-test",
+        authoritative=True,
+        provenance="test pack",
+        catalog=EXAMPLE_PACK.catalog,
+        rule_sets=EXAMPLE_PACK.rule_sets,
+        addon_taxes=EXAMPLE_PACK.addon_taxes,
+        combiners=EXAMPLE_PACK.combiners,
+    )
+    with warnings.catch_warnings(record=True) as caught:
+        warnings.simplefilter("always")
+        result = compute_tax(
+            make_taxpayer(),
+            build_policy("federal", "income", 2024, pack=pack),
+            pack=pack,
+        )
+    assert not caught
+    assert result.net_tax == 129529.5
+
+
+def test_pack_replaces_example_catalog() -> None:
+    catalog = {
+        ("federal", "income", "standard_deduction"): [
+            yearly(2024, {"single": [1]}),
+        ],
+    }
+    pack = LawPack(
+        name="tiny",
+        authoritative=True,
+        provenance="tiny test catalog",
+        catalog=catalog,
+        rule_sets={},
+        addon_taxes={},
+        combiners={},
+    )
+
+    policy = build_policy("federal", "income", 2024, pack=pack)
+    assert set(policy.parameters) == {"standard_deduction"}
+
+    # The example catalog must not leak into a caller-supplied pack.
+    try:
+        build_policy("federal", "income", 2023, pack=pack)
+    except NoEffectiveVersionError:
+        pass
+    else:
+        raise AssertionError("expected the pack's catalog to have no 2023 data")
+
+
+def test_addon_tax_is_pluggable() -> None:
+    def zero_niit(unit: TaxUnit, policy: Policy, agi: float) -> float:
+        return 0.0
+
+    pack = LawPack(
+        name="zero-niit",
+        authoritative=True,
+        provenance="test pack",
+        catalog=EXAMPLE_PACK.catalog,
+        rule_sets=EXAMPLE_PACK.rule_sets,
+        addon_taxes={"niit": zero_niit},
+        combiners=EXAMPLE_PACK.combiners,
+    )
+    policies = {
+        "income": build_policy("federal", "income", 2024, pack=pack),
+        "niit": build_policy("federal", "niit", 2024, pack=pack),
+    }
+    result = compute_return(make_taxpayer(), policies, pack=pack)
+    assert result.parts["niit"] == 0.0
+    assert result.total_tax == result.parts["income"]
+
+
+def test_missing_addon_tax_raises() -> None:
+    pack = LawPack(
+        name="no-addons",
+        authoritative=True,
+        provenance="test pack",
+        catalog=EXAMPLE_PACK.catalog,
+        rule_sets=EXAMPLE_PACK.rule_sets,
+        addon_taxes={},
+        combiners=EXAMPLE_PACK.combiners,
+    )
+    policies = {
+        "income": build_policy("federal", "income", 2024, pack=pack),
+        "niit": build_policy("federal", "niit", 2024, pack=pack),
+    }
+    try:
+        compute_return(make_taxpayer(), policies, pack=pack)
+    except AvailabilityError as exc:
+        assert "niit" in str(exc)
+    else:
+        raise AssertionError("expected AvailabilityError for a missing add-on tax")
+
+
+def test_load_pack() -> None:
+    from taxcalc.example_pack import EXAMPLE_PACK as module_pack
+
+    assert load_pack("taxcalc.example_pack") is module_pack
+
+
 def main() -> None:
     tests = [
         test_resolve_by_year,
@@ -205,10 +329,19 @@ def main() -> None:
         test_ruleset_reuse,
         test_ruleset_no_fallback,
         test_override_changes_result,
+        test_example_pack_is_not_authoritative,
+        test_return_carries_pack_identity,
+        test_authoritative_pack_does_not_warn,
+        test_pack_replaces_example_catalog,
+        test_addon_tax_is_pluggable,
+        test_missing_addon_tax_raises,
+        test_load_pack,
     ]
-    for test in tests:
-        test()
-        print(f"PASSED  {test.__name__}")
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        for test in tests:
+            test()
+            print(f"PASSED  {test.__name__}")
     print(f"\nAll {len(tests)} proto2 tests passed.")
 
 

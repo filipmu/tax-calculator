@@ -285,6 +285,11 @@ class ReturnResult:
     parts: Dict[str, float]   # tax name -> tax amount on a comparable base
     detail: Dict[str, Any]    # tax name -> detailed result (e.g. TaxResult)
     total_tax: float
+    # Which law produced this result: the pack's identity travels with the
+    # number so illustrative output cannot be mistaken for filing-grade work.
+    pack_name: str = ""
+    authoritative: bool = True
+    provenance: str = ""
 
 @dataclass
 class TaxResults:

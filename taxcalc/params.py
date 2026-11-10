@@ -13,6 +13,7 @@ from types import MappingProxyType
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 from .models import Parameter, Policy
+from .pack import LawPack, default_pack
 
 
 # ---------------------------------------------------------------------------
@@ -259,8 +260,12 @@ def build_policy(
     *,
     overrides: Optional[Dict[str, Any]] = None,
     catalog: Optional[Dict[Tuple[str, str, str], List[Parameter]]] = None,
+    pack: Optional[LawPack] = None,
 ) -> Policy:
     """Resolve every parameter for (jurisdiction, tax, year) into a Policy.
+
+    Parameters are read from, in order of precedence: an explicit ``catalog``,
+    the ``catalog`` of the given ``pack``, or the illustrative example pack.
 
     Parameters introduced in a later year are absent from earlier policies
     (they did not exist yet). A parameter whose data stops before the
@@ -269,7 +274,8 @@ def build_policy(
     `overrides` replaces a resolved value wholesale, for what-if analysis.
     Overriding a name that is not in the catalog is an error.
     """
-    catalog = PARAMETERS if catalog is None else catalog
+    if catalog is None:
+        catalog = pack.catalog if pack is not None else default_pack().catalog
     overrides = overrides or {}
 
     names = sorted(
