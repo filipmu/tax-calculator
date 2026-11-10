@@ -371,11 +371,79 @@ compute_pre_credit_tax(unit, policy, taxable_income)
 compute_credits(unit, policy, pre_credit_tax)
 ```
 
-`compute_credits` does **not** receive AGI. If a new credit rule needs AGI, you
-must change the contract: add `agi` to the `compute_credits` signature in
-`RuleSet`, update the call in `compute_return`, and update **all** rule
-functions that use it. This is a bigger change than adding a number, so plan it
-separately and update every existing rule set.
+`compute_credits` does **not** receive AGI. Adding AGI to the credit rule is a
+change to the **shared call contract**, not just to the new function. Two things
+are involved:
+
+- **Logic is per-era.** The 2023-2024 `compute_credits` must keep doing exactly
+  what it did. You do not rewrite its logic.
+- **The call is shared.** `compute_return` calls one signature for every era.
+  If that signature gains an argument, every function the pipeline can reach
+  must accept it, even if the old ones ignore it.
+
+If you change only the new function and the call, computing a prior year fails
+with:
+
+```
+TypeError: compute_credits() takes 3 positional arguments but 4 were given
+```
+
+You have three options:
+
+**Option 1 - compatibility signature (simplest).** Add `agi` to every
+`compute_credits` and ignore it in the old ones. Behavior is unchanged, but you
+touched old code:
+
+```python
+def compute_credits(unit, policy, pre_credit_tax, agi):
+    ...  # 2023-2024 logic; does not use agi
+```
+
+**Option 2 - adapter (keeps old functions unchanged).** Leave the 2023-2024
+function exactly as it is and add a small wrapper for the old RuleSet:
+
+```python
+def compute_credits_2023(unit, policy, pre_credit_tax, agi):
+    # AGI is ignored; this preserves the original 2023-2024 behavior.
+    return compute_credits(unit, policy, pre_credit_tax)
+```
+
+Point the old RuleSet at `compute_credits_2023` and the new one at
+`compute_credits_2025`.
+
+**Option 3 - context object (future-proof).** Pass one `context` value to all
+four functions instead of individual values:
+
+```python
+@dataclass
+class RuleContext:
+    agi: float
+    taxable_income: float
+    pre_credit_tax: float
+
+def compute_credits(unit, policy, context):
+    ...
+```
+
+Adding another derived value later then never changes a signature. This is a
+bigger one-time refactor of all four functions and `compute_return`.
+
+Whichever option you choose, also update the `RuleSet` type annotation and the
+call in `compute_return`:
+
+```python
+# RuleSet
+compute_credits: Callable[[TaxUnit, Policy, float, float], float]
+
+# compute_return
+total_credits = rules.compute_credits(
+    unit, income_policy, pre_credit_tax, agi
+)
+```
+
+For proto2, **Option 1** is the least machinery. Consider Option 3 only if
+signature changes become frequent; at four functions it is a modest refactor,
+but not necessary yet.
 
 ---
 
