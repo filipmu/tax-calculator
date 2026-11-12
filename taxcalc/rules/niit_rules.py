@@ -11,13 +11,13 @@ def compute_niit(unit: TaxUnit, policy: Policy, agi: float) -> float:
     threshold = param(policy, "niit_threshold", unit.filing_status.value)
 
     # Qualified dividends are included in ordinary dividends, so they are not
-    # added separately.
+    # added separately.  Rental income is folded into other_sched_1 and is not
+    # separable here.
     net_investment_income = (
-        unit.income.interest
+        unit.income.taxable_interest
         + unit.income.ordinary_dividends
-        + unit.income.short_term_capital_gains
-        + unit.income.long_term_capital_gains
-        + unit.income.rental  # passive rental income
+        + unit.income.short_term_capital_gain_loss
+        + unit.income.long_term_capital_gain_loss
     )
 
     magi = agi  # MAGI equals AGI for this prototype

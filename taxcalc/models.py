@@ -30,28 +30,34 @@ class Person:
 
 @dataclass
 class Income:
-    """ All income sources"""
-    # Wage and salary income
+    """Income sources, grouped to follow Form 1040."""
+
+    # Form 1040, line 1a
     wages_w2: float = 0.0
 
-    # Investment income
-    interest: float = 0.0
+    # Form 1040, line 2b
+    taxable_interest: float = 0.0   # e.g., taxable interest from Form 1099-INT
+
+    # Form 1040, line 3b
     qualified_dividends: float = 0.0   # Subset of ordinary_dividends
     ordinary_dividends: float = 0.0    # Includes qualified_dividends
 
-    # Capital gains
-    short_term_capital_gains: float = 0.0
-    long_term_capital_gains: float = 0.0
+    # Form 1040, lines 4b, 5b, and 6b
+    taxable_ira: float = 0.0
+    taxable_pensions_annuities: float = 0.0
+    taxable_social_security: float = 0.0
 
-    # Business and other income
-    self_employment: float = 0.0
-    rental: float = 0.0
-    other: float = 0.0
+    # Form 1040, line 7 (from Schedule D)
+    short_term_capital_gain_loss: float = 0.0
+    long_term_capital_gain_loss: float = 0.0
 
-    # Income adjustments
-    ira_deduction: float = 0.0
-    student_loan_interest_deduction: float = 0.0
+    # Form 1040, line 8 (Schedule 1, line 10).  Net business, rental,
+    # unemployment, and other Schedule 1 income.
+    other_sched_1: float = 0.0
 
+    # Income adjustments (Schedule 1, Part II; Form 1040, line 10).
+    # Enter the total of all adjustments; the prototype does not itemize them.
+    adjustments_sched_1: float = 0.0
 
     # Tax-exempt interest (affects AMT)
     tax_exempt_interest: float = 0.0

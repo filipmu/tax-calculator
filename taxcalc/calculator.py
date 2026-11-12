@@ -78,13 +78,13 @@ class TaxCalculator:
 
         # Step 4: Calculate federal regular income tax
         # Separate ordinary income from capital gains for proper tax treatment
-        ordinary_income = results.taxable_income - self.income.long_term_capital_gains - self.income.qualified_dividends
+        ordinary_income = results.taxable_income - self.income.long_term_capital_gain_loss - self.income.qualified_dividends
         ordinary_income = max(0, ordinary_income)
 
         results.federal_income_tax = self._calculate_federal_tax(ordinary_income)
         results.capital_gains_tax = self._calculate_capital_gains_tax(
             results.taxable_income,
-            self.income.long_term_capital_gains,
+            self.income.long_term_capital_gain_loss,
             self.income.qualified_dividends
         )
         results.total_federal_regular_tax = results.federal_income_tax + results.capital_gains_tax
@@ -146,26 +146,24 @@ class TaxCalculator:
         """
         return (
             self.income.wages_w2 +
-            self.income.interest +
+            self.income.taxable_interest +
             self.income.ordinary_dividends +
-            self.income.short_term_capital_gains +
-            self.income.long_term_capital_gains +
-            self.income.self_employment +
-            self.income.rental +
-            self.income.other
+            self.income.taxable_ira +
+            self.income.taxable_pensions_annuities +
+            self.income.taxable_social_security +
+            self.income.short_term_capital_gain_loss +
+            self.income.long_term_capital_gain_loss +
+            self.income.other_sched_1
         )
 
     def _calculate_agi(self, gross_income: float) -> float:
         """
         Calculate Adjusted Gross Income (AGI).
 
-        Subtracts above-the-line adjustments (IRA deduction and student loan
-        interest) from gross income.
+        Subtracts above-the-line adjustments (Schedule 1, Part II) from gross
+        income.
         """
-        adjustments = (
-            self.income.ira_deduction +
-            self.income.student_loan_interest_deduction
-        )
+        adjustments = self.income.adjustments_sched_1
         return max(0.0, gross_income - adjustments)
 
     def _calculate_standard_deduction(self) -> float:
@@ -399,12 +397,12 @@ class TaxCalculator:
 
         # Calculate net investment income. Qualified dividends are already
         # included in ordinary dividends, so they are not added separately.
+        # Rental income is folded into other_sched_1 and is not separable here.
         net_investment_income = (
-            self.income.interest +
+            self.income.taxable_interest +
             self.income.ordinary_dividends +
-            self.income.short_term_capital_gains +
-            self.income.long_term_capital_gains +
-            self.income.rental  # Passive rental income
+            self.income.short_term_capital_gain_loss +
+            self.income.long_term_capital_gain_loss
         )
 
         # MAGI for most taxpayers equals AGI
@@ -421,12 +419,14 @@ class TaxCalculator:
 
     def _calculate_additional_medicare_tax(self) -> float:
         """
-        Calculate Additional Medicare Tax (0.9% on wages/SE income above threshold).
+        Calculate Additional Medicare Tax (0.9% on wages above threshold).
+
+        Self-employment income is folded into other_sched_1 and is not
+        separately available here.
         """
         threshold = self.config.medicare_threshold[self.taxpayer.filing_status]
 
-        # Calculate wages and self-employment income subject to Medicare tax
-        medicare_income = self.income.wages_w2 + self.income.self_employment * 0.9235
+        medicare_income = self.income.wages_w2
 
         if medicare_income <= threshold:
             return 0.0
@@ -527,14 +527,15 @@ INCOME SUMMARY
 {'='*80}
 
   Wages (W-2):                               ${self.income.wages_w2:>15,.2f}
-  Interest Income:                           ${self.income.interest:>15,.2f}
+  Taxable Interest:                          ${self.income.taxable_interest:>15,.2f}
   Dividends (Qualified):                     ${self.income.qualified_dividends:>15,.2f}
   Dividends (Ordinary):                      ${self.income.ordinary_dividends:>15,.2f}
-  Short-Term Capital Gains:                  ${self.income.short_term_capital_gains:>15,.2f}
-  Long-Term Capital Gains:                   ${self.income.long_term_capital_gains:>15,.2f}
-  Self-Employment Income:                    ${self.income.self_employment:>15,.2f}
-  Rental Income:                             ${self.income.rental:>15,.2f}
-  Other Income:                              ${self.income.other:>15,.2f}
+  Taxable IRA Distributions:                 ${self.income.taxable_ira:>15,.2f}
+  Taxable Pensions and Annuities:            ${self.income.taxable_pensions_annuities:>15,.2f}
+  Taxable Social Security:                   ${self.income.taxable_social_security:>15,.2f}
+  Short-Term Capital Gain/Loss:              ${self.income.short_term_capital_gain_loss:>15,.2f}
+  Long-Term Capital Gain/Loss:               ${self.income.long_term_capital_gain_loss:>15,.2f}
+  Other Schedule 1 Income:                   ${self.income.other_sched_1:>15,.2f}
                                              {'-'*30}
   TOTAL GROSS INCOME:                        ${results.gross_income:>15,.2f}
 

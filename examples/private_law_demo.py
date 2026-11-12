@@ -35,8 +35,8 @@ def main() -> None:
         primary=Person(age=40),
         income=Income(
             wages_w2=250_000,
-            interest=10_000,
-            long_term_capital_gains=50_000,
+            taxable_interest=10_000,
+            long_term_capital_gain_loss=50_000,
         ),
     )
 

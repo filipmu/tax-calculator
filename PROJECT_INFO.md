@@ -54,7 +54,7 @@ tax-calculator/
    - ISO exercise (AMT calculation)
    - Multiple income sources
    - Investment income
-   - Rental income
+   - Schedule 1 income (including rental and self-employment)
 
 ## Quick Start
 
@@ -103,7 +103,7 @@ taxpayer = TaxUnit(
     spouse=Person(age=43),
     income=Income(
         wages_w2=400000,
-        long_term_capital_gains=100000
+        long_term_capital_gain_loss=100000
     )
 )
 
@@ -176,7 +176,7 @@ print(f"Effective Rate: {results.effective_total_rate*100:.2f}%")
 
 ## Important Notes
 
-1. **Above-the-line deductions**: Traditional IRA and student loan interest are set on `Income`; subtract 401(k)/HSA workplace contributions from `wages_w2` before input
+1. **Above-the-line deductions**: Add up Schedule 1 adjustments (for example, IRA and student loan interest) and enter the total in `Income.adjustments_sched_1`; subtract 401(k)/HSA workplace contributions from `wages_w2` before input
 2. **Accuracy**: Based on official IRS and CA FTB 2024 guidance
 3. **Limitations**: Does not include self-employment tax calculation
 4. **Use**: For planning purposes only - consult tax professional for filing

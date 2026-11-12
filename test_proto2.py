@@ -44,11 +44,11 @@ def make_taxpayer() -> TaxUnit:
         ],
         income=Income(
             wages_w2=400000,
-            interest=5000,
+            taxable_interest=5000,
             ordinary_dividends=55000,
             qualified_dividends=45000,
-            long_term_capital_gains=100000,
-            rental=20000,
+            long_term_capital_gain_loss=100000,
+            other_sched_1=20000,
         ),
     )
 
@@ -164,8 +164,30 @@ def test_niit() -> None:
         "niit": build_policy("federal", "niit", 2024),
     }
     result = compute_return(make_taxpayer(), policies)
-    assert result.parts["niit"] == 6840.0  # 180000 * 3.8%
+    # Rental income is now inside other_sched_1, so it is not part of NII.
+    assert result.parts["niit"] == 6080.0  # 160000 * 3.8%
     assert result.total_tax == result.parts["income"] + result.parts["niit"]
+
+
+def test_income_1040_lines() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=40),
+        income=Income(
+            wages_w2=100_000,
+            taxable_interest=1_000,
+            ordinary_dividends=2_000,
+            taxable_ira=3_000,
+            taxable_pensions_annuities=4_000,
+            taxable_social_security=5_000,
+            short_term_capital_gain_loss=6_000,
+            long_term_capital_gain_loss=7_000,
+            other_sched_1=8_000,
+            adjustments_sched_1=2_000,
+        ),
+    )
+    result = compute_tax(unit, build_policy("federal", "income", 2024))
+    assert result.agi == 134_000.0
 
 
 def test_ruleset_reuse() -> None:
@@ -326,6 +348,7 @@ def main() -> None:
         test_income_2023_regression,
         test_income_2024,
         test_niit,
+        test_income_1040_lines,
         test_ruleset_reuse,
         test_ruleset_no_fallback,
         test_override_changes_result,

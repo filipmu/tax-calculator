@@ -6,20 +6,18 @@ def compute_agi(unit: TaxUnit, policy: Policy) -> float:
     # dividends, so they are not added separately.
     gross_income = (
         unit.income.wages_w2
-        + unit.income.interest
+        + unit.income.taxable_interest
         + unit.income.ordinary_dividends
-        + unit.income.short_term_capital_gains
-        + unit.income.long_term_capital_gains
-        + unit.income.self_employment
-        + unit.income.rental
-        + unit.income.other
+        + unit.income.taxable_ira
+        + unit.income.taxable_pensions_annuities
+        + unit.income.taxable_social_security
+        + unit.income.short_term_capital_gain_loss
+        + unit.income.long_term_capital_gain_loss
+        + unit.income.other_sched_1
     )
 
-    # Sum above‑the‑line adjustments
-    adjustments = (
-        unit.income.ira_deduction
-        + unit.income.student_loan_interest_deduction
-    )
+    # Above-the-line adjustments from Schedule 1, Part II
+    adjustments = unit.income.adjustments_sched_1
 
     # AGI cannot be negative
     return max(0.0, gross_income - adjustments)

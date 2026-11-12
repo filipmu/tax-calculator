@@ -34,7 +34,7 @@ def example_1_compare_2024_vs_2025():
         spouse=Person(age=43),
         income=Income(
             wages_w2=400000,
-            long_term_capital_gains=100000,
+            long_term_capital_gain_loss=100000,
             ordinary_dividends=15000,
             qualified_dividends=15000
         )
@@ -144,7 +144,7 @@ def example_3_what_if_no_salt_cap():
         filing_status=FilingStatus.MARRIED_JOINT,
         primary=Person(age=55),
         spouse=Person(age=53),
-        income=Income(wages_w2=500000, long_term_capital_gains=200000)
+        income=Income(wages_w2=500000, long_term_capital_gain_loss=200000)
     )
     itemized = ItemizedDeductions(
         state_local_income_taxes=75000,  # High state taxes
@@ -241,7 +241,7 @@ def example_4_custom_from_scratch():
     taxpayer = TaxUnit(
         filing_status=FilingStatus.SINGLE,
         primary=Person(age=40),
-        income=Income(wages_w2=200000, long_term_capital_gains=50000)
+        income=Income(wages_w2=200000, long_term_capital_gain_loss=50000)
     )
     itemized = ItemizedDeductions()
 

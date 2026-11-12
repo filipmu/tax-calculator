@@ -47,7 +47,7 @@ taxpayer = TaxUnit(
     spouse=Person(age=43),
     income=Income(
         wages_w2=400000,
-        long_term_capital_gains=100000,
+        long_term_capital_gain_loss=100000,
         ordinary_dividends=15000,
         qualified_dividends=15000
     )
@@ -112,7 +112,7 @@ python my_tax_calculation.py
    - Compare total_tax_liability
 
 2. **Analyze Capital Gains Impact**
-   - Add long_term_capital_gains to `Income`
+   - Add long_term_capital_gain_loss to `Income`
    - Note preferential tax treatment (0%, 15%, 20%)
 
 3. **Check AMT Exposure**
@@ -143,7 +143,7 @@ taxpayer = TaxUnit(
     spouse=Person(age=43),
     income=Income(
         wages_w2=400000,
-        long_term_capital_gains=100000,
+        long_term_capital_gain_loss=100000,
         ordinary_dividends=20000,
         qualified_dividends=20000
     )
@@ -183,7 +183,7 @@ The `TaxResults` object contains all calculations:
 
 ## Tips
 
-1. **Pre-tax contributions**: Traditional IRA and student loan interest go in `Income.ira_deduction` / `Income.student_loan_interest_deduction`; subtract 401(k) and HSA contributions from wages_w2 before input
+1. **Pre-tax contributions**: Add up Schedule 1 adjustments (for example, IRA and student loan interest) and enter the total in `Income.adjustments_sched_1`; subtract 401(k) and HSA contributions from wages_w2 before input
 2. **SALT cap**: Federal SALT deduction automatically capped at $10,000
 3. **Charitable limits**: Cash contributions limited to 60% of AGI, property to 30%
 4. **Medical expenses**: Only amount exceeding 7.5% of AGI is deductible

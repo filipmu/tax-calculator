@@ -54,11 +54,11 @@ def example_2_married_with_investments():
         ],
         income=Income(
             wages_w2=400000,
-            interest=5000,
+            taxable_interest=5000,
             ordinary_dividends=15000,
             qualified_dividends=15000,
-            long_term_capital_gains=100000,
-            rental=20000
+            long_term_capital_gain_loss=100000,
+            other_sched_1=20000
         )
     )
 
@@ -88,7 +88,7 @@ def example_3_amt_scenario():
         primary=Person(age=35),
         income=Income(
             wages_w2=250000,
-            long_term_capital_gains=50000,
+            long_term_capital_gain_loss=50000,
             ordinary_dividends=10000,
             qualified_dividends=10000
         )
@@ -124,7 +124,7 @@ def quick_comparison():
         spouse=Person(age=38),
         income=Income(
             wages_w2=200000,
-            long_term_capital_gains=30000
+            long_term_capital_gain_loss=30000
         )
     )
 
