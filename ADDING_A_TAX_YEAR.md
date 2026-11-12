@@ -406,16 +406,31 @@ A `RuleSet` is only needed for the multi-step income-tax pipeline (AGI →
 taxable income → pre-credit tax → credits). If a tax is a single computation,
 call it directly from `compute_return`, as `compute_niit` is.
 
+An add-on tax has the signature:
+
+```python
+addon_tax(unit, policy, income_result) -> float
+```
+
+`income_result` is the already-computed `TaxResult`, so an add-on can use AGI,
+taxable income, and `capital_gains` (the Schedule D worksheet result) without
+recomputing them.
+
 ### 3e. If the new rule needs data it does not receive
 
 The four income functions have fixed signatures:
 
 ```python
-compute_agi(unit, policy)
-compute_taxable_income(unit, policy, agi)
-compute_pre_credit_tax(unit, policy, taxable_income)
-compute_credits(unit, policy, pre_credit_tax)
+compute_agi(unit, policy, capital) -> float
+compute_taxable_income(unit, policy, agi) -> float
+compute_pre_credit_tax(unit, policy, taxable_income, capital) -> PreCreditTax
+compute_credits(unit, policy, pre_credit_tax) -> float
 ```
+
+`capital` is the `CapitalGainDetail` returned by the Schedule D worksheet;
+`pre_credit_tax` is the `.total` of the returned `PreCreditTax`. The split
+(ordinary vs. preferential income and tax) is carried on `PreCreditTax`, so a
+rule change that affects only one part still reports both.
 
 `compute_credits` does **not** receive AGI. Adding AGI to the credit rule is a
 change to the **shared call contract**, not just to the new function. Two things
@@ -490,6 +505,22 @@ total_credits = rules.compute_credits(
 For proto2, **Option 1** is the least machinery. Consider Option 3 only if
 signature changes become frequent; at four functions it is a modest refactor,
 but not necessary yet.
+
+### 3f. Update the coverage checks
+
+File: `taxcalc/coverage.py`
+
+Every gap between the inputs a user can enter and the logic that handles them
+needs a check here. The convention is:
+
+- **warning** when the input is included but only partly modeled;
+- **error** when the input is ignored entirely (the default
+  `coverage="raise"` then stops the calculation).
+
+When you implement a previously unmodeled input, **delete its check in the same
+change**. When you add a rule that ignores part of an input, add a check with a
+message that says exactly what is missing. This is what keeps a planning
+calculation from looking more complete than it is.
 
 ---
 
@@ -601,22 +632,27 @@ For a year where **numbers and a rule change**:
 3. `taxcalc/rules/rulesets.py`
    - End the old `RuleSet` range at 2024-12-31.
    - Add a new `RuleSet` from 2025-01-01 with the changed function.
-4. `test_proto2.py`
+4. `taxcalc/coverage.py`
+   - Add or remove checks so the warnings match what the new rules model.
+5. `test_proto2.py`
    - Add 2025 tests; keep a 2026-still-fails test.
-5. `examples/Test policy data changes.ipynb`
+6. `examples/Test policy data changes.ipynb`
    - Add a 2025 cell.
-6. Run the checks and commit.
+7. Run the checks and commit.
 
 ---
 
 ## Checklist
 
-- [ ] Every `yearly` parameter for the tax has a 2025 version.
-- [ ] `since` parameters that are unchanged were left alone.
+- [ ] Every `yearly` parameter for the tax has a 2025 version, including
+      `capital_gain_brackets`.
+- [ ] `since` parameters that are unchanged were left alone (this includes
+      `capital_loss_limit`, which is statutory and not indexed).
 - [ ] New parameters use `since(2025, ...)`.
 - [ ] No parameter version ranges overlap (import would fail).
 - [ ] A new rule function was added instead of editing the old one.
 - [ ] The old RuleSet range was shortened; the new one starts in 2025.
+- [ ] `taxcalc/coverage.py` reflects what the new rules do and do not model.
 - [ ] Tests cover 2025, 2024 unchanged, and a missing future year.
 - [ ] `test_proto2.py` and `test_installation.py` pass.
 - [ ] The notebook runs top to bottom.

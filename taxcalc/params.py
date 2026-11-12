@@ -231,6 +231,71 @@ PARAMETERS: Dict[Tuple[str, str, str], List[Parameter]] = {
             ],
         }),
     ],
+    ("federal", "income", "capital_gain_brackets"): [
+        yearly(2023, {
+            "single": [
+                (0.00, 44625),
+                (0.15, 492300),
+                (0.20, float("inf")),
+            ],
+            "married_joint": [
+                (0.00, 89250),
+                (0.15, 553850),
+                (0.20, float("inf")),
+            ],
+            "married_separate": [
+                (0.00, 44625),
+                (0.15, 276900),
+                (0.20, float("inf")),
+            ],
+            "head_of_household": [
+                (0.00, 59750),
+                (0.15, 523050),
+                (0.20, float("inf")),
+            ],
+            "qualifying_widow": [
+                (0.00, 89250),
+                (0.15, 553850),
+                (0.20, float("inf")),
+            ],
+        }),
+        yearly(2024, {
+            "single": [
+                (0.00, 47025),
+                (0.15, 518900),
+                (0.20, float("inf")),
+            ],
+            "married_joint": [
+                (0.00, 94050),
+                (0.15, 583750),
+                (0.20, float("inf")),
+            ],
+            "married_separate": [
+                (0.00, 47025),
+                (0.15, 291850),
+                (0.20, float("inf")),
+            ],
+            "head_of_household": [
+                (0.00, 63000),
+                (0.15, 551350),
+                (0.20, float("inf")),
+            ],
+            "qualifying_widow": [
+                (0.00, 94050),
+                (0.15, 583750),
+                (0.20, float("inf")),
+            ],
+        }),
+    ],
+    ("federal", "income", "capital_loss_limit"): [
+        since(2023, {
+            "single": [3000],
+            "married_joint": [3000],
+            "married_separate": [1500],
+            "head_of_household": [3000],
+            "qualifying_widow": [3000],
+        }),
+    ],
     ("federal", "income", "child_credit_amount"): [
         since(2023, {"default": [2000]}),
     ],

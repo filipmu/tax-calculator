@@ -20,6 +20,9 @@ from .models import (
     Income,
     ItemizedDeductions,
     AMTAdjustments,
+    CapitalGainDetail,
+    PreCreditTax,
+    CoverageIssue,
     TaxResult,
     TaxResults,
     ReturnResult,
@@ -42,10 +45,13 @@ from .params import (
 )
 
 from .rules.rulesets import get_ruleset
+from .rules.capital_gain_rules import compute_capital_gains
 
 from .calculator import TaxCalculator, TaxCalculator2024
 
 from .pipeline import compute_tax, compute_return
+
+from .coverage import UnsupportedInputError, check_coverage
 
 from .pack import LawPack, load_pack
 from .example_pack import EXAMPLE_PACK
@@ -65,6 +71,9 @@ __all__ = [
     "Income",
     "ItemizedDeductions",
     "AMTAdjustments",
+    "CapitalGainDetail",
+    "PreCreditTax",
+    "CoverageIssue",
     "TaxResults",
     "TaxResult",
     "ReturnResult",
@@ -84,6 +93,7 @@ __all__ = [
     "AvailabilityError",
     # Rules
     "get_ruleset",
+    "compute_capital_gains",
     # Law packs
     "LawPack",
     "load_pack",
@@ -91,6 +101,8 @@ __all__ = [
     # Calculators
     "compute_tax",
     "compute_return",
+    "check_coverage",
+    "UnsupportedInputError",
     "TaxCalculator",
     "TaxCalculator2024",
     # Config helpers

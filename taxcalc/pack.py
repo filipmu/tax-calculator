@@ -25,14 +25,14 @@ from dataclasses import dataclass
 from importlib import import_module
 from typing import Any, Callable, Mapping, Tuple
 
-from .models import Policy, TaxUnit
+from .models import Policy, TaxResult, TaxUnit
 
 # Catalog keys and rule keys, kept here so the pack does not import the
 # registries (which would create an import cycle).
 ParamKey = Tuple[str, str, str]   # (jurisdiction, tax, parameter name)
 RuleKey = Tuple[str, str]         # (jurisdiction, tax)
 
-AddonTax = Callable[[TaxUnit, Policy, float], float]
+AddonTax = Callable[[TaxUnit, Policy, TaxResult], float]
 Combiner = Callable[[Mapping[str, float]], float]
 
 

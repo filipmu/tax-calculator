@@ -93,14 +93,36 @@ A runnable template lives in
 [`examples/private_law/`](examples/private_law/README.md); run
 `python examples/private_law_demo.py` to see the whole flow.
 
+## Coverage
+
+The calculator refuses to guess. If a populated input is not fully modeled,
+`compute_return` reports it:
+
+- **warning** — the input is included but only partly modeled (for example,
+  `other_sched_1` is taxed as ordinary income, but self-employment tax and QBI
+  are not computed);
+- **error** — the input is ignored entirely. With the default
+  `coverage="raise"`, an error stops the calculation.
+
+Issues are also returned on `ReturnResult.coverage`, so a notebook can annotate
+each scenario instead of parsing warnings. Pass `coverage="warn"` to compute
+despite errors, or `coverage="off"` to suppress the checks in tight loops.
+
+Capital loss carryforwards follow the same rule: they are inputs, not state.
+Feed last year's `TaxResult.capital_gains` values back in; nothing is mutated
+or remembered.
+
 ## Current coverage
 
 | Area | Status |
 |---|---|
 | Federal income tax | Tax years 2023–2024, illustrative values |
+| Capital gains and losses | Short/long-term netting, `$3,000` loss limit (`$1,500` MFS), 0/15/20% rates on gains and qualified dividends |
+| Capital loss carryforward | Entered as an input (`Income.*_capital_loss_carryforward`); reported back on `TaxResult.capital_gains`; no state is kept |
 | Net Investment Income Tax (NIIT) | Parameters since 2013; used with 2023–2024 income |
 | Add-on taxes | Pluggable through a law pack (`niit` is wired in the example) |
-| AMT | Legacy calculator only; future work in the new engine |
+| Coverage checks | Populated inputs that are only partly modeled are listed on `ReturnResult.coverage` and emitted as warnings |
+| AMT | Legacy calculator only; future work in the new engine (flagged by a coverage warning) |
 | California state tax | Legacy calculator only |
 | Missing year / parameter | Raises `NoEffectiveVersionError` or `MissingParameterError` |
 | Inputs | Flat dataclasses with defaults (`TaxUnit`, `Income`, `Person`) |
@@ -151,8 +173,10 @@ taxcalc/
   params.py          # parameter catalog, build_policy, resolver, errors
   rules/
     base_rules.py    # AGI -> taxable income -> pre-credit tax -> credits
+    capital_gain_rules.py  # Schedule D netting and the capital-loss limit
     niit_rules.py    # Net Investment Income Tax
     rulesets.py      # RuleSet and the example rule registry
+  coverage.py        # input coverage checks (warn or stop)
   pipeline.py        # compute_return / compute_tax / combiners
   pack.py            # LawPack and load_pack
   example_pack.py    # EXAMPLE_PACK (illustrative, non-authoritative)
@@ -183,8 +207,10 @@ python3 test_installation.py  # legacy calculator still imports and runs
 ```
 
 `test_proto2.py` currently covers parameter resolution, missing/overlapping
-years, the per-tax pipeline, NIIT, law-pack identity and warnings, pack
-replacement (no leakage), pluggable add-on taxes, and `load_pack`.
+years, the per-tax pipeline, capital-gain netting and 0/15/20% rates, the
+capital-loss limit and carryforward round trip, NIIT, coverage checks, law-pack
+identity and warnings, pack replacement (no leakage), pluggable add-on taxes,
+and `load_pack`.
 
 ## Documentation
 

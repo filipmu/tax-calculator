@@ -33,6 +33,20 @@ PARAMETERS: Dict[Tuple[str, str, str], List[Parameter]] = {
             ],
         }),
     ],
+    ("federal", "income", "capital_gain_brackets"): [
+        yearly(2024, {
+            "single": [
+                (0.00, 47025),
+                (0.15, 518900),
+                (0.20, float("inf")),
+            ],
+        }),
+    ],
+    ("federal", "income", "capital_loss_limit"): [
+        since(2023, {
+            "single": [3000],
+        }),
+    ],
     ("federal", "income", "child_credit_amount"): [
         since(2023, {"default": [2000]}),
     ],

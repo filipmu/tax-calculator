@@ -11,6 +11,7 @@ import warnings
 from taxcalc import (
     AmbiguousVersionError,
     AvailabilityError,
+    CoverageIssue,
     EXAMPLE_PACK,
     FilingStatus,
     Income,
@@ -20,7 +21,9 @@ from taxcalc import (
     Person,
     Policy,
     TaxUnit,
+    UnsupportedInputError,
     build_policy,
+    check_coverage,
     compute_return,
     compute_tax,
     get_ruleset,
@@ -145,17 +148,31 @@ def test_later_parameter_is_absent_earlier() -> None:
     assert param(p2025, "standard_deduction", "single") == 3
 
 
+def single_unit(**income_fields) -> TaxUnit:
+    return TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=40),
+        income=Income(**income_fields),
+    )
+
+
 def test_income_2023_regression() -> None:
     result = compute_tax(make_taxpayer(), build_policy("federal", "income", 2023))
-    assert result.pre_credit_tax == 112121.0
+    # The $100,000 long-term gain and $45,000 of qualified dividends are now
+    # taxed at preferential rates instead of ordinary rates.
+    assert result.pre_credit_tax == 101971.0
     assert result.total_credits == 4000.0
-    assert result.net_tax == 108121.0
+    assert result.net_tax == 97971.0
+    assert result.preferential_taxable_income == 145000.0
+    assert result.ordinary_taxable_income == 407300.0
 
 
 def test_income_2024() -> None:
     result = compute_tax(make_taxpayer(), build_policy("federal", "income", 2024))
-    assert result.pre_credit_tax == 133529.5
-    assert result.net_tax == 129529.5
+    assert result.pre_credit_tax == 106979.0
+    assert result.net_tax == 102979.0
+    assert result.preferential_tax == 21750.0
+    assert result.ordinary_tax == 85229.0
 
 
 def test_niit() -> None:
@@ -253,9 +270,12 @@ def test_authoritative_pack_does_not_warn() -> None:
             make_taxpayer(),
             build_policy("federal", "income", 2024, pack=pack),
             pack=pack,
+            # This fixture populates other_sched_1, which has a coverage
+            # warning of its own; turn coverage off to isolate the pack check.
+            coverage="off",
         )
     assert not caught
-    assert result.net_tax == 129529.5
+    assert result.net_tax == 102979.0
 
 
 def test_pack_replaces_example_catalog() -> None:
@@ -287,7 +307,7 @@ def test_pack_replaces_example_catalog() -> None:
 
 
 def test_addon_tax_is_pluggable() -> None:
-    def zero_niit(unit: TaxUnit, policy: Policy, agi: float) -> float:
+    def zero_niit(unit: TaxUnit, policy: Policy, income_result) -> float:
         return 0.0
 
     pack = LawPack(
@@ -336,6 +356,257 @@ def test_load_pack() -> None:
     assert load_pack("taxcalc.example_pack") is module_pack
 
 
+def test_capital_gain_netting_and_preferential_rates() -> None:
+    result = compute_tax(
+        single_unit(wages_w2=60_000, long_term_capital_gain_loss=10_000),
+        build_policy("federal", "income", 2024),
+    )
+    capital = result.capital_gains
+    assert capital.net_long_term == 10_000.0
+    assert capital.preferential_income == 10_000.0
+    assert result.agi == 70_000.0
+    assert result.taxable_income == 55_400.0
+    assert result.ordinary_taxable_income == 45_400.0
+    assert result.preferential_taxable_income == 10_000.0
+    assert result.ordinary_tax == 5_216.0
+    assert result.preferential_tax == 1_256.25
+    assert result.pre_credit_tax == 6_472.25
+
+
+def test_preferential_income_at_zero_rate() -> None:
+    result = compute_tax(
+        single_unit(wages_w2=20_000, long_term_capital_gain_loss=10_000),
+        build_policy("federal", "income", 2024),
+    )
+    assert result.taxable_income == 15_400.0
+    assert result.preferential_taxable_income == 10_000.0
+    assert result.preferential_tax == 0.0
+    assert result.ordinary_tax == 540.0
+
+
+def test_capital_loss_limit_and_carryforward() -> None:
+    result = compute_tax(
+        single_unit(
+            wages_w2=60_000,
+            short_term_capital_gain_loss=-5_000,
+            long_term_capital_gain_loss=-1_000,
+        ),
+        build_policy("federal", "income", 2024),
+    )
+    capital = result.capital_gains
+    assert capital.allowed_loss == 3_000.0
+    assert capital.carryforward_short_term == 3_000.0
+    assert capital.carryforward_long_term == 0.0
+    assert result.agi == 57_000.0
+
+
+def test_capital_loss_under_limit_is_fully_deducted() -> None:
+    capital = compute_tax(
+        single_unit(wages_w2=60_000, short_term_capital_gain_loss=-2_000),
+        build_policy("federal", "income", 2024),
+    ).capital_gains
+    assert capital.allowed_loss == 2_000.0
+    assert capital.carryforward_short_term == 0.0
+
+
+def test_short_gain_offsets_long_loss() -> None:
+    capital = compute_tax(
+        single_unit(
+            wages_w2=60_000,
+            short_term_capital_gain_loss=5_000,
+            long_term_capital_gain_loss=-8_000,
+        ),
+        build_policy("federal", "income", 2024),
+    ).capital_gains
+    assert capital.net_short_term == 0.0
+    assert capital.net_long_term == -3_000.0
+    assert capital.ordinary_capital_gain == 0.0
+    assert capital.preferential_income == 0.0
+    assert capital.allowed_loss == 3_000.0
+    assert capital.carryforward_short_term == 0.0
+    assert capital.carryforward_long_term == 0.0
+
+
+def test_long_term_carryforward_reduces_preferential_gain() -> None:
+    capital = compute_tax(
+        single_unit(
+            wages_w2=60_000,
+            long_term_capital_gain_loss=10_000,
+            long_term_capital_loss_carryforward=4_000,
+        ),
+        build_policy("federal", "income", 2024),
+    ).capital_gains
+    assert capital.net_long_term == 6_000.0
+    assert capital.preferential_income == 6_000.0
+
+
+def test_mfs_capital_loss_limit() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.MARRIED_SEPARATE,
+        primary=Person(age=40),
+        spouse=Person(age=40),
+        income=Income(
+            wages_w2=60_000,
+            short_term_capital_gain_loss=-5_000,
+        ),
+    )
+    capital = compute_tax(
+        unit, build_policy("federal", "income", 2024)
+    ).capital_gains
+    assert capital.allowed_loss == 1_500.0
+    assert capital.carryforward_short_term == 3_500.0
+
+
+def test_qualified_dividends_survive_capital_loss() -> None:
+    result = compute_tax(
+        single_unit(
+            wages_w2=60_000,
+            ordinary_dividends=2_000,
+            qualified_dividends=2_000,
+            short_term_capital_gain_loss=-5_000,
+        ),
+        build_policy("federal", "income", 2024),
+    )
+    assert result.capital_gains.preferential_income == 2_000.0
+    assert result.capital_gains.allowed_loss == 3_000.0
+    assert result.agi == 59_000.0
+
+
+def test_capital_loss_carryforward_round_trip() -> None:
+    policy = build_policy("federal", "income", 2024)
+    first = compute_tax(
+        single_unit(wages_w2=60_000, short_term_capital_gain_loss=-10_000),
+        policy,
+    ).capital_gains
+    assert first.allowed_loss == 3_000.0
+    assert first.carryforward_short_term == 7_000.0
+
+    # Feed the reported carryforward back in as next year's input.
+    expected = [(3_000.0, 4_000.0), (3_000.0, 1_000.0), (1_000.0, 0.0)]
+    carry = first.carryforward_short_term
+    for allowed, remaining in expected:
+        detail = compute_tax(
+            single_unit(
+                wages_w2=60_000,
+                short_term_capital_loss_carryforward=carry,
+            ),
+            policy,
+        ).capital_gains
+        assert detail.allowed_loss == allowed
+        assert detail.carryforward_short_term == remaining
+        carry = detail.carryforward_short_term
+
+
+def test_coverage_reports_partial_inputs() -> None:
+    policies = {"income": build_policy("federal", "income", 2024)}
+    unit = single_unit(
+        wages_w2=100_000,
+        other_sched_1=5_000,
+        tax_exempt_interest=1_000,
+        taxable_social_security=2_000,
+    )
+    unit.dependents.append(Person(age=18))
+
+    issues = check_coverage(unit, policies)
+    codes = {issue.code for issue in issues}
+    assert codes == {
+        "other-sched-1-unmodeled",
+        "amt-unmodeled",
+        "social-security-taxability-unmodeled",
+        "dependent-credit-unmodeled",
+    }
+    assert all(issue.severity == "warning" for issue in issues)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = compute_return(unit, policies)
+    assert {issue.code for issue in result.coverage} == codes
+
+    quiet = compute_return(unit, policies, coverage="off")
+    assert quiet.coverage == ()
+
+
+def test_refundable_ctc_is_flagged() -> None:
+    unit = single_unit(wages_w2=10_000)
+    unit.dependents.append(Person(age=5, relationship="child"))
+    policies = {"income": build_policy("federal", "income", 2024)}
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = compute_return(unit, policies)
+    assert "refundable-ctc-unmodeled" in {
+        issue.code for issue in result.coverage
+    }
+    assert result.parts["income"] == 0.0
+
+
+def test_coverage_mode_is_validated() -> None:
+    unit = single_unit(wages_w2=100_000)
+    policies = {"income": build_policy("federal", "income", 2024)}
+    try:
+        compute_return(unit, policies, coverage="nope")
+    except ValueError as exc:
+        assert "coverage" in str(exc)
+    else:
+        raise AssertionError("expected ValueError for an unknown coverage mode")
+
+
+def test_income_input_validation() -> None:
+    try:
+        Income(ordinary_dividends=10, qualified_dividends=20)
+    except ValueError as exc:
+        assert "qualified_dividends" in str(exc)
+    else:
+        raise AssertionError("expected qualified dividends above ordinary to raise")
+
+    for field in (
+        "short_term_capital_loss_carryforward",
+        "long_term_capital_loss_carryforward",
+    ):
+        try:
+            Income(**{field: -1})
+        except ValueError as exc:
+            assert field in str(exc)
+        else:
+            raise AssertionError(f"expected negative {field} to raise")
+
+
+def test_unsupported_input_error_message() -> None:
+    error = UnsupportedInputError([
+        CoverageIssue(
+            code="x-unmodeled", detail="not modeled", severity="error"
+        )
+    ])
+    assert "x-unmodeled" in str(error)
+    assert error.issues[0].code == "x-unmodeled"
+
+
+def test_age_65_stops_the_calculation() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=65, blind=True),
+        income=Income(wages_w2=100_000),
+    )
+    policies = {"income": build_policy("federal", "income", 2024)}
+
+    try:
+        compute_return(unit, policies)
+    except UnsupportedInputError as exc:
+        assert "age-65-additional-deduction-unmodeled" in str(exc)
+        assert "blind-additional-deduction-unmodeled" in str(exc)
+    else:
+        raise AssertionError("expected an unsupported-input error")
+
+    # Exploratory mode computes anyway and reports the issues.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = compute_return(unit, policies, coverage="warn")
+    assert {
+        "age-65-additional-deduction-unmodeled",
+        "blind-additional-deduction-unmodeled",
+    } <= {issue.code for issue in result.coverage}
+
+
 def main() -> None:
     tests = [
         test_resolve_by_year,
@@ -349,6 +620,21 @@ def main() -> None:
         test_income_2024,
         test_niit,
         test_income_1040_lines,
+        test_capital_gain_netting_and_preferential_rates,
+        test_preferential_income_at_zero_rate,
+        test_capital_loss_limit_and_carryforward,
+        test_capital_loss_under_limit_is_fully_deducted,
+        test_short_gain_offsets_long_loss,
+        test_long_term_carryforward_reduces_preferential_gain,
+        test_mfs_capital_loss_limit,
+        test_qualified_dividends_survive_capital_loss,
+        test_capital_loss_carryforward_round_trip,
+        test_coverage_reports_partial_inputs,
+        test_refundable_ctc_is_flagged,
+        test_coverage_mode_is_validated,
+        test_income_input_validation,
+        test_unsupported_input_error_message,
+        test_age_65_stops_the_calculation,
         test_ruleset_reuse,
         test_ruleset_no_fallback,
         test_override_changes_result,
