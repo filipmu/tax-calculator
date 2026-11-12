@@ -121,7 +121,8 @@ or remembered.
 | Capital loss carryforward | Entered as an input (`Income.*_capital_loss_carryforward`); reported back on `TaxResult.capital_gains`; no state is kept |
 | Itemized deductions | `TaxUnit.itemized` adds Schedule A amounts. Medical 7.5%-of-AGI floor, SALT cap (including the 2025+ phase-down), mortgage interest as entered, charitable 60%-of-AGI limit with the 2026+ 0.5% floor, and the 2026+ section 68 2/37 limitation. The larger of standard and itemized is used. |
 | Net Investment Income Tax (NIIT) | Parameters since 2013; used with 2023–2024 income |
-| Add-on taxes | Pluggable through a law pack (`niit` is wired in the example) |
+| Minnesota income tax | Form M1 from federal AGI: MN standard deduction with the high-income limitation, dependent exemptions with phase-out, and the U.S. government interest subtraction. Example values for 2023–2024; a private pack can add later years. MN itemized deductions (M1SA), the Social Security subtraction, additions, AMT, and credits are not modeled and are flagged. |
+| Add-on taxes | Pluggable through a law pack (`niit` and `MN` are wired in the example) |
 | Coverage checks | Populated inputs that are only partly modeled are listed on `ReturnResult.coverage` and emitted as warnings |
 | AMT | Legacy calculator only; future work in the new engine (flagged by a coverage warning) |
 | California state tax | Legacy calculator only |
@@ -161,10 +162,16 @@ from taxcalc import build_policy, compute_return
 policies = {
     "income": build_policy("federal", "income", 2024),
     "niit": build_policy("federal", "niit", 2024),
+    "MN": build_policy("MN", "income", 2024),
 }
 result = compute_return(unit, policies)
-print(result.parts["niit"], result.total_tax)
+print(result.parts["niit"], result.parts["MN"], result.total_tax)
+print(result.detail["MN"].mn_taxable_income)
 ```
+
+Minnesota is an add-on tax keyed by `"MN"` in the policy mapping. Its rule
+receives the federal AGI from the income result and reports an `MNResult` in
+`ReturnResult.detail["MN"]`.
 
 ## Repository layout
 
@@ -176,6 +183,7 @@ taxcalc/
     base_rules.py    # AGI -> taxable income -> pre-credit tax -> credits
     capital_gain_rules.py  # Schedule D netting and the capital-loss limit
     deduction_rules.py     # Schedule A: itemized deductions and limits
+    mn_rules.py      # Minnesota Form M1 income tax
     niit_rules.py    # Net Investment Income Tax
     rulesets.py      # RuleSet and the example rule registry
   coverage.py        # input coverage checks (warn or stop)
@@ -210,9 +218,10 @@ python3 test_installation.py  # legacy calculator still imports and runs
 
 `test_proto2.py` currently covers parameter resolution, missing/overlapping
 years, the per-tax pipeline, capital-gain netting and 0/15/20% rates, the
-capital-loss limit and carryforward round trip, NIIT, coverage checks, law-pack
-identity and warnings, pack replacement (no leakage), pluggable add-on taxes,
-and `load_pack`.
+capital-loss limit and carryforward round trip, NIIT, itemized deductions,
+Minnesota income tax (including the Treasury subtraction, deduction limitation,
+and exemption phase-out), coverage checks, law-pack identity and warnings, pack
+replacement (no leakage), pluggable add-on taxes, and `load_pack`.
 
 ## Documentation
 
@@ -228,7 +237,10 @@ and `load_pack`.
 
 This is a prototype. Deliberately out of scope for now:
 
-- AMT in the new engine.
+- Federal and Minnesota AMT in the new engine.
+- Minnesota itemized deductions (Schedule M1SA) and the remaining Schedule M1M
+  additions and subtractions.
+- Minnesota nonrefundable credits.
 - California state tax in the new engine.
 - Full tax-code coverage; only what is needed is implemented.
 - Versioning the `TaxUnit`/`Income` input schema by year (inputs are facts, not

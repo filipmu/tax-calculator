@@ -69,4 +69,62 @@ PARAMETERS: Dict[Tuple[str, str, str], List[Parameter]] = {
             "single": [200000],
         }),
     ],
+    # Minnesota, 2024, single filer.  Same shape as the federal entries.
+    ("MN", "income", "brackets"): [
+        yearly(2024, {
+            "single": [
+                (0.0535, 31690),
+                (0.0680, 104090),
+                (0.0785, 193240),
+                (0.0985, float("inf")),
+            ],
+        }),
+    ],
+    ("MN", "income", "standard_deduction"): [
+        yearly(2024, {
+            "single": [14575],
+        }),
+    ],
+    ("MN", "income", "standard_deduction_phaseout_start"): [
+        yearly(2024, {
+            "single": [232500],
+        }),
+    ],
+    ("MN", "income", "standard_deduction_phaseout_second"): [
+        yearly(2024, {
+            "single": [321350],
+        }),
+    ],
+    ("MN", "income", "standard_deduction_phaseout_rate"): [
+        since(2023, {"default": [0.03]}),
+    ],
+    ("MN", "income", "standard_deduction_phaseout_rate_second"): [
+        since(2023, {"default": [0.10]}),
+    ],
+    ("MN", "income", "standard_deduction_phaseout_cap"): [
+        since(2023, {"default": [0.80]}),
+    ],
+    ("MN", "income", "dependent_exemption"): [
+        yearly(2024, {
+            "single": [5050],
+        }),
+    ],
+    ("MN", "income", "dependent_exemption_phaseout_start"): [
+        yearly(2024, {
+            "single": [232550],
+        }),
+    ],
+    ("MN", "income", "dependent_exemption_phaseout_step"): [
+        since(2023, {
+            "single": [2500],
+        }),
+    ],
+    ("MN", "income", "dependent_exemption_phaseout_max"): [
+        since(2023, {
+            "single": [122500],
+        }),
+    ],
+    ("MN", "income", "dependent_exemption_phaseout_rate"): [
+        since(2023, {"default": [0.02]}),
+    ],
 }

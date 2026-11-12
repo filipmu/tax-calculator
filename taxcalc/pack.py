@@ -23,16 +23,16 @@ pass is the only law used for that call.
 
 from dataclasses import dataclass
 from importlib import import_module
-from typing import Any, Callable, Mapping, Tuple
+from typing import Any, Callable, Mapping, Tuple, Union
 
-from .models import Policy, TaxResult, TaxUnit
+from .models import AddonTaxResult, Policy, TaxResult, TaxUnit
 
 # Catalog keys and rule keys, kept here so the pack does not import the
 # registries (which would create an import cycle).
 ParamKey = Tuple[str, str, str]   # (jurisdiction, tax, parameter name)
 RuleKey = Tuple[str, str]         # (jurisdiction, tax)
 
-AddonTax = Callable[[TaxUnit, Policy, TaxResult], float]
+AddonTax = Callable[[TaxUnit, Policy, TaxResult], Union[float, AddonTaxResult]]
 Combiner = Callable[[Mapping[str, float]], float]
 
 

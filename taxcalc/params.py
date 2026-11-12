@@ -335,6 +335,327 @@ PARAMETERS: Dict[Tuple[str, str, str], List[Parameter]] = {
             "qualifying_widow": [250000],
         }),
     ],
+    # ------------------------------------------------------------------
+    # Minnesota income tax (Form M1)
+    # ------------------------------------------------------------------
+    # Minnesota starts from federal AGI, then subtracts its own standard
+    # deduction, dependent exemptions, and items such as U.S. government
+    # interest.  Amounts are from the M1 instructions and the Department of
+    # Revenue's annual bracket release.  The 2027 amounts were not published
+    # when this catalog was written, so a 2027 policy fails loudly instead of
+    # reusing 2026.
+    ("MN", "income", "brackets"): [
+        yearly(2023, {
+            "single": [
+                (0.0535, 30070),
+                (0.0680, 98760),
+                (0.0785, 183340),
+                (0.0985, float("inf")),
+            ],
+            "married_joint": [
+                (0.0535, 43950),
+                (0.0680, 174610),
+                (0.0785, 304970),
+                (0.0985, float("inf")),
+            ],
+            "married_separate": [
+                (0.0535, 21975),
+                (0.0680, 87305),
+                (0.0785, 152485),
+                (0.0985, float("inf")),
+            ],
+            "head_of_household": [
+                (0.0535, 37010),
+                (0.0680, 148730),
+                (0.0785, 243720),
+                (0.0985, float("inf")),
+            ],
+            "qualifying_widow": [
+                (0.0535, 43950),
+                (0.0680, 174610),
+                (0.0785, 304970),
+                (0.0985, float("inf")),
+            ],
+        }),
+        yearly(2024, {
+            "single": [
+                (0.0535, 31690),
+                (0.0680, 104090),
+                (0.0785, 193240),
+                (0.0985, float("inf")),
+            ],
+            "married_joint": [
+                (0.0535, 46330),
+                (0.0680, 184040),
+                (0.0785, 321450),
+                (0.0985, float("inf")),
+            ],
+            "married_separate": [
+                (0.0535, 23165),
+                (0.0680, 92020),
+                (0.0785, 160725),
+                (0.0985, float("inf")),
+            ],
+            "head_of_household": [
+                (0.0535, 39010),
+                (0.0680, 156760),
+                (0.0785, 256880),
+                (0.0985, float("inf")),
+            ],
+            "qualifying_widow": [
+                (0.0535, 46330),
+                (0.0680, 184040),
+                (0.0785, 321450),
+                (0.0985, float("inf")),
+            ],
+        }),
+        yearly(2025, {
+            "single": [
+                (0.0535, 32570),
+                (0.0680, 106990),
+                (0.0785, 198630),
+                (0.0985, float("inf")),
+            ],
+            "married_joint": [
+                (0.0535, 47620),
+                (0.0680, 189180),
+                (0.0785, 330410),
+                (0.0985, float("inf")),
+            ],
+            "married_separate": [
+                (0.0535, 23810),
+                (0.0680, 94590),
+                (0.0785, 165205),
+                (0.0985, float("inf")),
+            ],
+            "head_of_household": [
+                (0.0535, 40100),
+                (0.0680, 161130),
+                (0.0785, 264050),
+                (0.0985, float("inf")),
+            ],
+            "qualifying_widow": [
+                (0.0535, 47620),
+                (0.0680, 189180),
+                (0.0785, 330410),
+                (0.0985, float("inf")),
+            ],
+        }),
+        yearly(2026, {
+            "single": [
+                (0.0535, 33310),
+                (0.0680, 109430),
+                (0.0785, 203150),
+                (0.0985, float("inf")),
+            ],
+            "married_joint": [
+                (0.0535, 48700),
+                (0.0680, 193480),
+                (0.0785, 337930),
+                (0.0985, float("inf")),
+            ],
+            "married_separate": [
+                (0.0535, 24350),
+                (0.0680, 96740),
+                (0.0785, 168965),
+                (0.0985, float("inf")),
+            ],
+            "head_of_household": [
+                (0.0535, 41010),
+                (0.0680, 164800),
+                (0.0785, 270060),
+                (0.0985, float("inf")),
+            ],
+            "qualifying_widow": [
+                (0.0535, 48700),
+                (0.0680, 193480),
+                (0.0785, 337930),
+                (0.0985, float("inf")),
+            ],
+        }),
+    ],
+    ("MN", "income", "standard_deduction"): [
+        yearly(2023, {
+            "single": [13825],
+            "married_joint": [27650],
+            "married_separate": [13825],
+            "head_of_household": [20800],
+            "qualifying_widow": [27650],
+        }),
+        yearly(2024, {
+            "single": [14575],
+            "married_joint": [29150],
+            "married_separate": [14575],
+            "head_of_household": [21900],
+            "qualifying_widow": [29150],
+        }),
+        yearly(2025, {
+            "single": [14950],
+            "married_joint": [29900],
+            "married_separate": [14950],
+            "head_of_household": [22500],
+            "qualifying_widow": [29900],
+        }),
+        yearly(2026, {
+            "single": [15300],
+            "married_joint": [30600],
+            "married_separate": [15300],
+            "head_of_household": [23000],
+            "qualifying_widow": [30600],
+        }),
+    ],
+    # Standard deduction limitation: 3% of AGI above the first threshold plus
+    # 10% above the second, capped at 80% of the deduction.
+    ("MN", "income", "standard_deduction_phaseout_start"): [
+        yearly(2023, {
+            "single": [220650],
+            "married_joint": [220650],
+            "married_separate": [110325],
+            "head_of_household": [220650],
+            "qualifying_widow": [220650],
+        }),
+        yearly(2024, {
+            "single": [232500],
+            "married_joint": [232500],
+            "married_separate": [116250],
+            "head_of_household": [232500],
+            "qualifying_widow": [232500],
+        }),
+        yearly(2025, {
+            "single": [238950],
+            "married_joint": [238950],
+            "married_separate": [119475],
+            "head_of_household": [238950],
+            "qualifying_widow": [238950],
+        }),
+        yearly(2026, {
+            "single": [244400],
+            "married_joint": [244400],
+            "married_separate": [122200],
+            "head_of_household": [244400],
+            "qualifying_widow": [244400],
+        }),
+    ],
+    ("MN", "income", "standard_deduction_phaseout_second"): [
+        yearly(2023, {
+            "single": [304970],
+            "married_joint": [304970],
+            "married_separate": [152485],
+            "head_of_household": [304970],
+            "qualifying_widow": [304970],
+        }),
+        yearly(2024, {
+            "single": [321350],
+            "married_joint": [321350],
+            "married_separate": [160675],
+            "head_of_household": [321350],
+            "qualifying_widow": [321350],
+        }),
+        yearly(2025, {
+            "single": [330300],
+            "married_joint": [330300],
+            "married_separate": [165150],
+            "head_of_household": [330300],
+            "qualifying_widow": [330300],
+        }),
+        yearly(2026, {
+            "single": [337800],
+            "married_joint": [337800],
+            "married_separate": [168900],
+            "head_of_household": [337800],
+            "qualifying_widow": [337800],
+        }),
+    ],
+    ("MN", "income", "standard_deduction_phaseout_rate"): [
+        since(2023, {"default": [0.03]}),
+    ],
+    ("MN", "income", "standard_deduction_phaseout_rate_second"): [
+        since(2023, {"default": [0.10]}),
+    ],
+    ("MN", "income", "standard_deduction_phaseout_cap"): [
+        since(2023, {"default": [0.80]}),
+    ],
+    ("MN", "income", "dependent_exemption"): [
+        yearly(2023, {
+            "single": [4800],
+            "married_joint": [4800],
+            "married_separate": [4800],
+            "head_of_household": [4800],
+            "qualifying_widow": [4800],
+        }),
+        yearly(2024, {
+            "single": [5050],
+            "married_joint": [5050],
+            "married_separate": [5050],
+            "head_of_household": [5050],
+            "qualifying_widow": [5050],
+        }),
+        yearly(2025, {
+            "single": [5200],
+            "married_joint": [5200],
+            "married_separate": [5200],
+            "head_of_household": [5200],
+            "qualifying_widow": [5200],
+        }),
+        yearly(2026, {
+            "single": [5300],
+            "married_joint": [5300],
+            "married_separate": [5300],
+            "head_of_household": [5300],
+            "qualifying_widow": [5300],
+        }),
+    ],
+    ("MN", "income", "dependent_exemption_phaseout_start"): [
+        yearly(2023, {
+            "single": [220650],
+            "married_joint": [330950],
+            "married_separate": [165475],
+            "head_of_household": [275800],
+            "qualifying_widow": [330950],
+        }),
+        yearly(2024, {
+            "single": [232550],
+            "married_joint": [348850],
+            "married_separate": [174425],
+            "head_of_household": [290700],
+            "qualifying_widow": [348850],
+        }),
+        yearly(2025, {
+            "single": [239050],
+            "married_joint": [358550],
+            "married_separate": [179275],
+            "head_of_household": [298800],
+            "qualifying_widow": [358550],
+        }),
+        yearly(2026, {
+            "single": [244500],
+            "married_joint": [366700],
+            "married_separate": [183350],
+            "head_of_household": [305600],
+            "qualifying_widow": [366700],
+        }),
+    ],
+    ("MN", "income", "dependent_exemption_phaseout_step"): [
+        since(2023, {
+            "single": [2500],
+            "married_joint": [2500],
+            "married_separate": [1250],
+            "head_of_household": [2500],
+            "qualifying_widow": [2500],
+        }),
+    ],
+    ("MN", "income", "dependent_exemption_phaseout_max"): [
+        since(2023, {
+            "single": [122500],
+            "married_joint": [122500],
+            "married_separate": [61250],
+            "head_of_household": [122500],
+            "qualifying_widow": [122500],
+        }),
+    ],
+    ("MN", "income", "dependent_exemption_phaseout_rate"): [
+        since(2023, {"default": [0.02]}),
+    ],
 }
 
 

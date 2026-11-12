@@ -38,6 +38,11 @@ class Income:
     # Form 1040, line 2b
     taxable_interest: float = 0.0   # e.g., taxable interest from Form 1099-INT
 
+    # Subset of taxable_interest paid by U.S. government obligations.  It is
+    # taxable federally but Minnesota does not tax it, so it is a subtraction
+    # on Form M1.
+    us_treasury_interest: float = 0.0
+
     # Form 1040, line 3b
     qualified_dividends: float = 0.0   # Subset of ordinary_dividends
     ordinary_dividends: float = 0.0    # Includes qualified_dividends
@@ -74,6 +79,11 @@ class Income:
             raise ValueError(
                 "qualified_dividends cannot exceed ordinary_dividends: "
                 f"{self.qualified_dividends} > {self.ordinary_dividends}"
+            )
+        if self.us_treasury_interest > self.taxable_interest:
+            raise ValueError(
+                "us_treasury_interest cannot exceed taxable_interest: "
+                f"{self.us_treasury_interest} > {self.taxable_interest}"
             )
         if self.short_term_capital_loss_carryforward < 0:
             raise ValueError(
@@ -393,6 +403,52 @@ class TaxableIncome:
     """Taxable income with the deduction detail that produced it."""
     amount: float = 0.0
     deductions: DeductionDetail = DeductionDetail()
+
+
+@dataclass(frozen=True)
+class AddonTaxResult:
+    """An add-on tax amount, with optional detail for reporting.
+
+    Add-on rules such as NIIT may return a plain float.  A rule that has
+    useful intermediate figures returns ``AddonTaxResult`` instead, so the
+    amount still flows into ``ReturnResult.parts`` while the detail is stored
+    on ``ReturnResult.detail``.
+    """
+    amount: float = 0.0
+    detail: Any = None
+
+
+@dataclass(frozen=True)
+class MNResult:
+    """Minnesota income tax and the figures that produced it.
+
+    ``standard_deduction`` and ``dependent_exemptions`` are the allowed
+    amounts after the high-income limitations.
+    """
+    federal_agi: float = 0.0
+    treasury_subtraction: float = 0.0
+    standard_deduction_before_limitation: float = 0.0
+    standard_deduction_limitation: float = 0.0
+    dependent_exemptions_before_phaseout: float = 0.0
+    dependent_exemption_phaseout: float = 0.0
+    mn_taxable_income: float = 0.0
+    tax: float = 0.0
+
+    @property
+    def standard_deduction(self) -> float:
+        return max(
+            0.0,
+            self.standard_deduction_before_limitation
+            - self.standard_deduction_limitation,
+        )
+
+    @property
+    def dependent_exemptions(self) -> float:
+        return max(
+            0.0,
+            self.dependent_exemptions_before_phaseout
+            - self.dependent_exemption_phaseout,
+        )
 
 
 @dataclass(frozen=True)

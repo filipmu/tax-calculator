@@ -13,6 +13,7 @@ combiners) and exposes it as ``PACK``.  Then load it with
 from .pack import LawPack
 from .params import PARAMETERS
 from .pipeline import COMBINERS
+from .rules.mn_rules import compute_mn_tax
 from .rules.niit_rules import compute_niit
 from .rules.rulesets import RULE_SETS
 
@@ -25,7 +26,7 @@ EXAMPLE_PACK = LawPack(
     ),
     catalog=PARAMETERS,
     rule_sets=RULE_SETS,
-    addon_taxes={"niit": compute_niit},
+    addon_taxes={"niit": compute_niit, "MN": compute_mn_tax},
     combiners=COMBINERS,
 )
 

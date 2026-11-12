@@ -1,16 +1,17 @@
 """
-Tax Calculator Package for Federal and California Taxes
+Tax Calculator Package
 
-A comprehensive tax calculation package for analyzing tax scenarios.
-Includes support for itemized deductions, capital gains, AMT, and California state taxes.
-Supports custom tax configurations for different years or hypothetical scenarios.
+A tax calculation package for analyzing tax scenarios.  The versioned engine
+supports federal income tax, capital gains and preferential rates, itemized
+deductions, NIIT, and Minnesota income tax.  The legacy calculator (kept for
+compatibility) also covers AMT and California.
 
 The package ships only an *illustrative* law pack (``EXAMPLE_PACK``). It is not
 authoritative and is not tax advice. Pass your own ``LawPack`` (see
 ``taxcalc.load_pack``) to compute with real parameters and rules.
 
 Author: Tax Calculator
-Last Updated: October 2025
+Last Updated: November 2026
 """
 
 from .models import (
@@ -24,6 +25,8 @@ from .models import (
     PreCreditTax,
     DeductionDetail,
     TaxableIncome,
+    AddonTaxResult,
+    MNResult,
     CoverageIssue,
     TaxResult,
     TaxResults,
@@ -50,6 +53,7 @@ from .params import (
 from .rules.rulesets import get_ruleset
 from .rules.capital_gain_rules import compute_capital_gains
 from .rules.deduction_rules import compute_deductions
+from .rules.mn_rules import compute_mn_return, compute_mn_tax
 
 from .calculator import TaxCalculator, TaxCalculator2024
 
@@ -79,6 +83,8 @@ __all__ = [
     "PreCreditTax",
     "DeductionDetail",
     "TaxableIncome",
+    "AddonTaxResult",
+    "MNResult",
     "CoverageIssue",
     "TaxResults",
     "TaxResult",
@@ -102,6 +108,8 @@ __all__ = [
     "get_ruleset",
     "compute_capital_gains",
     "compute_deductions",
+    "compute_mn_return",
+    "compute_mn_tax",
     # Law packs
     "LawPack",
     "load_pack",

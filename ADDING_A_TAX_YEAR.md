@@ -420,12 +420,32 @@ call it directly from `compute_return`, as `compute_niit` is.
 An add-on tax has the signature:
 
 ```python
-addon_tax(unit, policy, income_result) -> float
+addon_tax(unit, policy, income_result) -> float | AddonTaxResult
 ```
 
 `income_result` is the already-computed `TaxResult`, so an add-on can use AGI,
 taxable income, and `capital_gains` (the Schedule D worksheet result) without
 recomputing them.
+
+Return a plain `float` for an amount only (`compute_niit` does this), or
+`AddonTaxResult(amount=..., detail=...)` when intermediate figures are worth
+reporting. The amount goes into `ReturnResult.parts[tax]` and the detail into
+`ReturnResult.detail[tax]`; `compute_mn_tax` in `rules/mn_rules.py` returns an
+`MNResult` this way.
+
+A state income tax is an add-on with its own policy. The mapping key is the
+add-on name in the pack; the policy's jurisdiction is separate:
+
+```python
+policies = {
+    "income": build_policy("federal", "income", 2024),
+    "MN": build_policy("MN", "income", 2024),
+}
+```
+
+`federal_combine` sums `"income"`, `"niit"`, and `"MN"`. A state with no data
+for the requested year fails in `build_policy` exactly like a missing federal
+parameter, so a new year cannot silently reuse last year's brackets.
 
 ### 3e. If the new rule needs data it does not receive
 
@@ -668,6 +688,8 @@ For a year where **numbers and a rule change**:
 - [ ] A new rule function was added instead of editing the old one.
 - [ ] The old RuleSet range was shortened; the new one starts in 2025.
 - [ ] `taxcalc/coverage.py` reflects what the new rules do and do not model.
+- [ ] A new tax or jurisdiction is wired into the pack's `addon_taxes` and the
+      combiner, and its parameters use its own `(jurisdiction, tax)` key.
 - [ ] Tests cover 2025, 2024 unchanged, and a missing future year.
 - [ ] `test_proto2.py` and `test_installation.py` pass.
 - [ ] The notebook runs top to bottom.

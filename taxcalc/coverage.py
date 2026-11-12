@@ -139,6 +139,58 @@ def check_coverage(
                 severity="warning",
             ))
 
+    # Minnesota starts from federal AGI, so its own deduction, exemptions, and
+    # subtractions are a separate set of gaps.
+    if "MN" in policies:
+        if unit.itemized is not None:
+            issues.append(CoverageIssue(
+                code="mn-itemized-deductions-unmodeled",
+                detail=(
+                    "Minnesota itemized deductions (Schedule M1SA) are not "
+                    "modeled. The MN standard deduction is used even when "
+                    "federal deductions are itemized."
+                ),
+                severity="warning",
+            ))
+
+        if income.taxable_social_security:
+            issues.append(CoverageIssue(
+                code="mn-social-security-subtraction-unmodeled",
+                detail=(
+                    "the Minnesota subtraction for Social Security benefits is "
+                    "not modeled; all federally taxable Social Security is "
+                    "included in Minnesota taxable income."
+                ),
+                severity="warning",
+            ))
+
+        if income.tax_exempt_interest or income.private_activity_bond_interest:
+            issues.append(CoverageIssue(
+                code="mn-additions-unmodeled",
+                detail=(
+                    "Minnesota additions, such as interest on bonds of another "
+                    "state, are not modeled. tax_exempt_interest is left out "
+                    "of Minnesota taxable income."
+                ),
+                severity="warning",
+            ))
+
+        if (
+            unit.itemized is not None
+            or income.other_sched_1
+            or income.tax_exempt_interest
+            or income.private_activity_bond_interest
+        ):
+            issues.append(CoverageIssue(
+                code="mn-amt-unmodeled",
+                detail=(
+                    "the Minnesota alternative minimum tax is not modeled, and "
+                    "neither are Minnesota nonrefundable credits. Inputs that "
+                    "often create AMT adjustments are present."
+                ),
+                severity="warning",
+            ))
+
     taxpayers = [unit.primary]
     if unit.spouse is not None:
         taxpayers.append(unit.spouse)

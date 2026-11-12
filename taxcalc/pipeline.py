@@ -6,7 +6,7 @@ from .coverage import (
     check_coverage,
     check_result_coverage,
 )
-from .models import Policy, ReturnResult, TaxResult, TaxUnit
+from .models import AddonTaxResult, Policy, ReturnResult, TaxResult, TaxUnit
 from .pack import LawPack, default_pack
 from .params import AvailabilityError
 from .rules.capital_gain_rules import compute_capital_gains
@@ -29,13 +29,18 @@ def compute_net_tax(pre_credit_tax: float, total_credits: float) -> float:
 #
 #   "income" -> regular income tax
 #   "niit"   -> add-on tax, summed on top
+#   "MN"     -> Minnesota income tax, summed on top
 #   "amt"    -> tentative minimum tax, compared with income (future work)
 #
 # A combiner decides which parts add and which compare. These definitions are
 # example data; a LawPack supplies the combiners actually used.
 
 def federal_combine(parts: Mapping[str, float]) -> float:
-    return parts.get("income", 0.0) + parts.get("niit", 0.0)
+    return (
+        parts.get("income", 0.0)
+        + parts.get("niit", 0.0)
+        + parts.get("MN", 0.0)
+    )
 
 
 COMBINERS: Dict[str, Callable[[Mapping[str, float]], float]] = {
@@ -57,7 +62,9 @@ def compute_return(
     """Compute several tax policies and combine them into a return total.
 
     ``policies["income"]`` is required because it supplies AGI. AGI is
-    computed once and passed to every add-on tax rule.
+    computed once and passed to every add-on tax rule. Other keys name add-on
+    taxes (``"niit"``, ``"MN"``); each key must also appear in the pack's
+    ``addon_taxes`` mapping.
 
     ``coverage`` controls what happens when a populated input is not fully
     modeled: ``"raise"`` (default) refuses to compute, ``"warn"`` computes but
@@ -155,11 +162,18 @@ def compute_return(
         except KeyError:
             available = ", ".join(sorted(pack.addon_taxes)) or "(none)"
             raise AvailabilityError(
-                f"{policy.jurisdiction}/{tax}: no add-on tax rule is defined "
-                f"in pack {pack.name!r}. Available: {available}"
+                f"{policy.jurisdiction}/{policy.tax}: no add-on tax rule is "
+                f"defined for pack key {tax!r} in pack {pack.name!r}. "
+                f"Available: {available}"
             ) from None
 
-        parts[tax] = addon(unit, policy, income_result)
+        value = addon(unit, policy, income_result)
+        if isinstance(value, AddonTaxResult):
+            parts[tax] = value.amount
+            if value.detail is not None:
+                detail[tax] = value.detail
+        else:
+            parts[tax] = value
 
     try:
         combiner = pack.combiners[income_policy.jurisdiction]

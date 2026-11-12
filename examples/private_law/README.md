@@ -46,9 +46,14 @@ pack = load_pack("private_law.pack")
 policies = {
     "income": build_policy("federal", "income", 2024, pack=pack),
     "niit": build_policy("federal", "niit", 2024, pack=pack),
+    "MN": build_policy("MN", "income", 2024, pack=pack),
 }
 result = compute_return(unit, policies, pack=pack)
 ```
+
+The catalog includes a single-filer Minnesota example for 2024. Add the
+selectors and years you actually use; a missing one raises rather than falling
+back to another year.
 
 Every entry point takes `pack=` explicitly. The pack you pass is the only law
 used for that call; the package never falls back to the example pack.

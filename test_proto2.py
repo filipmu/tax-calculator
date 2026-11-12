@@ -17,6 +17,7 @@ from taxcalc import (
     Income,
     ItemizedDeductions,
     LawPack,
+    MNResult,
     MissingParameterError,
     NoEffectiveVersionError,
     Person,
@@ -26,6 +27,7 @@ from taxcalc import (
     build_policy,
     check_coverage,
     compute_deductions,
+    compute_mn_return,
     compute_return,
     compute_tax,
     get_ruleset,
@@ -780,6 +782,169 @@ def test_itemized_coverage_checks() -> None:
         raise AssertionError("expected an unsupported casualty loss")
 
 
+def test_mn_tax_from_federal_agi() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=40),
+        income=Income(wages_w2=100_000),
+    )
+    result = compute_mn_return(
+        unit, build_policy("MN", "income", 2024), 100_000
+    )
+    assert result.federal_agi == 100_000.0
+    assert result.standard_deduction == 14_575.0
+    assert result.mn_taxable_income == 85_425.0
+    # 31,690 x 5.35% + (85,425 - 31,690) x 6.8%
+    assert round(result.tax, 2) == 5_349.40
+
+
+def test_mn_subtracts_us_treasury_interest() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=40),
+        income=Income(
+            wages_w2=100_000,
+            taxable_interest=10_000,
+            us_treasury_interest=4_000,
+        ),
+    )
+    result = compute_mn_return(
+        unit, build_policy("MN", "income", 2024), 110_000
+    )
+    assert result.treasury_subtraction == 4_000.0
+    assert result.mn_taxable_income == 91_425.0
+    assert round(result.tax, 2) == 5_757.40
+
+
+def test_mn_limitation_uses_federal_agi_before_subtractions() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=40),
+        income=Income(
+            wages_w2=250_000,
+            taxable_interest=50_000,
+            us_treasury_interest=50_000,
+        ),
+    )
+    result = compute_mn_return(
+        unit, build_policy("MN", "income", 2024), 300_000
+    )
+    # The worksheet uses Form M1 line 1 (federal AGI), not MN AGI after the
+    # Treasury subtraction: 3% x (300,000 - 232,500).
+    assert result.standard_deduction_limitation == 2_025.0
+    assert result.mn_taxable_income == 237_450.0
+
+
+def test_mn_standard_deduction_limitation() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=40),
+        income=Income(wages_w2=300_000),
+    )
+    result = compute_mn_return(
+        unit, build_policy("MN", "income", 2024), 300_000
+    )
+    # 3% x (300,000 - 232,500), below the 80% cap.
+    assert result.standard_deduction_limitation == 2_025.0
+    assert result.standard_deduction == 12_550.0
+    assert result.mn_taxable_income == 287_450.0
+    assert round(result.tax, 2) == 22_896.57
+
+
+def test_mn_dependent_exemption_phaseout() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=40),
+        income=Income(wages_w2=300_000),
+        dependents=[Person(age=5)],
+    )
+    result = compute_mn_return(
+        unit, build_policy("MN", "income", 2024), 300_000
+    )
+    # 5,050 total; 67,450 over the threshold / 2,500 = 27 steps x 2%.
+    assert result.dependent_exemptions_before_phaseout == 5_050.0
+    assert result.dependent_exemption_phaseout == 2_727.0
+    assert result.dependent_exemptions == 2_323.0
+    assert result.mn_taxable_income == 285_127.0
+
+
+def test_mn_mfs_thresholds_are_halved() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.MARRIED_SEPARATE,
+        primary=Person(age=40),
+        spouse=Person(age=40),
+        income=Income(wages_w2=150_000),
+    )
+    result = compute_mn_return(
+        unit, build_policy("MN", "income", 2024), 150_000
+    )
+    # 3% x (150,000 - 116,250), below the 80% cap.
+    assert result.standard_deduction_limitation == 1_012.5
+    assert result.standard_deduction == 13_562.5
+
+
+def test_mn_tax_is_an_addon() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=40),
+        income=Income(wages_w2=100_000),
+    )
+    policies = {
+        "income": build_policy("federal", "income", 2024),
+        "MN": build_policy("MN", "income", 2024),
+    }
+    result = compute_return(unit, policies)
+    assert round(result.parts["MN"], 2) == 5_349.40
+    assert round(
+        result.total_tax,
+        2,
+    ) == round(result.parts["income"] + result.parts["MN"], 2)
+    assert isinstance(result.detail["MN"], MNResult)
+    assert result.detail["MN"].mn_taxable_income == 85_425.0
+
+
+def test_mn_coverage_checks() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=40),
+        income=Income(
+            wages_w2=100_000,
+            taxable_social_security=5_000,
+            tax_exempt_interest=2_000,
+        ),
+        itemized=ItemizedDeductions(mortgage_interest=10_000),
+    )
+    policies = {
+        "income": build_policy("federal", "income", 2024),
+        "MN": build_policy("MN", "income", 2024),
+    }
+    codes = {issue.code for issue in check_coverage(unit, policies)}
+    assert {
+        "mn-itemized-deductions-unmodeled",
+        "mn-social-security-subtraction-unmodeled",
+        "mn-additions-unmodeled",
+        "mn-amt-unmodeled",
+    } <= codes
+
+
+def test_mn_2027_fails_loudly() -> None:
+    try:
+        build_policy("MN", "income", 2027)
+    except NoEffectiveVersionError as exc:
+        assert "2027" in str(exc)
+    else:
+        raise AssertionError("expected 2027 Minnesota data to be unavailable")
+
+
+def test_us_treasury_interest_cannot_exceed_taxable_interest() -> None:
+    try:
+        Income(taxable_interest=1_000, us_treasury_interest=2_000)
+    except ValueError as exc:
+        assert "us_treasury_interest" in str(exc)
+    else:
+        raise AssertionError("expected treasury interest above taxable to raise")
+
+
 def main() -> None:
     tests = [
         test_resolve_by_year,
@@ -816,6 +981,16 @@ def main() -> None:
         test_itemized_parameters_resolve_from_the_catalog,
         test_itemized_deductions_reject_negative_amounts,
         test_itemized_coverage_checks,
+        test_mn_tax_from_federal_agi,
+        test_mn_subtracts_us_treasury_interest,
+        test_mn_limitation_uses_federal_agi_before_subtractions,
+        test_mn_standard_deduction_limitation,
+        test_mn_dependent_exemption_phaseout,
+        test_mn_mfs_thresholds_are_halved,
+        test_mn_tax_is_an_addon,
+        test_mn_coverage_checks,
+        test_mn_2027_fails_loudly,
+        test_us_treasury_interest_cannot_exceed_taxable_interest,
         test_ruleset_reuse,
         test_ruleset_no_fallback,
         test_override_changes_result,
