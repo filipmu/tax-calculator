@@ -155,6 +155,30 @@ PARAMETERS: Dict[Tuple[str, str, str], List[Parameter]] = {
             "qualifying_widow": [29200],
         }),
     ],
+    # Schedule A limits.  These are illustrative for the example pack; a
+    # private pack carries the reviewed values.
+    ("federal", "income", "medical_expense_floor"): [
+        since(2023, {"default": [0.075]}),
+    ],
+    ("federal", "income", "salt_cap"): [
+        yearly(2023, {
+            "single": [10000],
+            "married_joint": [10000],
+            "married_separate": [5000],
+            "head_of_household": [10000],
+            "qualifying_widow": [10000],
+        }),
+        yearly(2024, {
+            "single": [10000],
+            "married_joint": [10000],
+            "married_separate": [5000],
+            "head_of_household": [10000],
+            "qualifying_widow": [10000],
+        }),
+    ],
+    ("federal", "income", "charitable_cash_limit"): [
+        since(2023, {"default": [0.60]}),
+    ],
     ("federal", "income", "brackets"): [
         yearly(2023, {
             "single": [
@@ -445,6 +469,25 @@ def param(policy: Policy, name: str, selector: Optional[str] = None) -> Any:
     if set(value) == {"default"}:
         return _unwrap(value["default"])
     return value
+
+
+def optional_param(
+    policy: Policy,
+    name: str,
+    selector: Optional[str] = None,
+    default: Any = None,
+) -> Any:
+    """Like ``param``, but return ``default`` when the parameter is absent.
+
+    Use this for a provision that did not exist yet in an earlier tax year
+    (for example, the SALT phase-down that starts in 2025).  An absent
+    parameter is different from a parameter whose versions stop early:
+    ``build_policy`` already raises in the second case, so this helper never
+    hides a missing version.
+    """
+    if name not in policy.parameters:
+        return default
+    return param(policy, name, selector)
 
 
 # ---------------------------------------------------------------------------

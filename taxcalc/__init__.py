@@ -22,6 +22,8 @@ from .models import (
     AMTAdjustments,
     CapitalGainDetail,
     PreCreditTax,
+    DeductionDetail,
+    TaxableIncome,
     CoverageIssue,
     TaxResult,
     TaxResults,
@@ -38,6 +40,7 @@ from .params import (
     MissingParameterError,
     NoEffectiveVersionError,
     build_policy,
+    optional_param,
     param,
     resolve,
     since,
@@ -46,6 +49,7 @@ from .params import (
 
 from .rules.rulesets import get_ruleset
 from .rules.capital_gain_rules import compute_capital_gains
+from .rules.deduction_rules import compute_deductions
 
 from .calculator import TaxCalculator, TaxCalculator2024
 
@@ -73,6 +77,8 @@ __all__ = [
     "AMTAdjustments",
     "CapitalGainDetail",
     "PreCreditTax",
+    "DeductionDetail",
+    "TaxableIncome",
     "CoverageIssue",
     "TaxResults",
     "TaxResult",
@@ -84,6 +90,7 @@ __all__ = [
     "PARAMETERS",
     "build_policy",
     "param",
+    "optional_param",
     "resolve",
     "yearly",
     "since",
@@ -94,6 +101,7 @@ __all__ = [
     # Rules
     "get_ruleset",
     "compute_capital_gains",
+    "compute_deductions",
     # Law packs
     "LawPack",
     "load_pack",

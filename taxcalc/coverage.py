@@ -92,6 +92,53 @@ def check_coverage(
             severity="warning",
         ))
 
+    itemized = unit.itemized
+    if itemized is not None:
+        if itemized.casualty_theft_losses:
+            issues.append(CoverageIssue(
+                code="casualty-loss-unmodeled",
+                detail=(
+                    "casualty_theft_losses is not modeled. Only losses from a "
+                    "federally declared disaster are deductible, and the "
+                    "calculator does not hold the declaration or apply the "
+                    "10%-of-AGI limit."
+                ),
+                severity="error",
+            ))
+
+        if itemized.gambling_losses:
+            issues.append(CoverageIssue(
+                code="gambling-loss-unmodeled",
+                detail=(
+                    "gambling_losses is not modeled because gambling winnings "
+                    "are not an input; the deduction is limited to winnings."
+                ),
+                severity="error",
+            ))
+
+        if itemized.mortgage_interest or itemized.mortgage_points:
+            issues.append(CoverageIssue(
+                code="mortgage-debt-limit-unmodeled",
+                detail=(
+                    "mortgage interest and points are deducted as entered. The "
+                    "$750,000 acquisition-debt limit, the grandfathered "
+                    "pre-2017 limit, and the points-timing rules are not "
+                    "modeled."
+                ),
+                severity="warning",
+            ))
+
+        if itemized.noncash_contributions:
+            issues.append(CoverageIssue(
+                code="noncash-charity-limit-unmodeled",
+                detail=(
+                    "noncash contributions are subject to the 30%-of-AGI limit "
+                    "and a five-year carryforward. The calculator applies the "
+                    "60% limit to all charitable contributions."
+                ),
+                severity="warning",
+            ))
+
     taxpayers = [unit.primary]
     if unit.spouse is not None:
         taxpayers.append(unit.spouse)

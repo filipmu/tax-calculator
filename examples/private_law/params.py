@@ -47,6 +47,17 @@ PARAMETERS: Dict[Tuple[str, str, str], List[Parameter]] = {
             "single": [3000],
         }),
     ],
+    ("federal", "income", "medical_expense_floor"): [
+        since(2023, {"default": [0.075]}),
+    ],
+    ("federal", "income", "salt_cap"): [
+        yearly(2024, {
+            "single": [10000],
+        }),
+    ],
+    ("federal", "income", "charitable_cash_limit"): [
+        since(2023, {"default": [0.60]}),
+    ],
     ("federal", "income", "child_credit_amount"): [
         since(2023, {"default": [2000]}),
     ],

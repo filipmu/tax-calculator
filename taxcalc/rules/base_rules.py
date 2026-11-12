@@ -1,5 +1,12 @@
-from ..models import CapitalGainDetail, Policy, PreCreditTax, TaxUnit
+from ..models import (
+    CapitalGainDetail,
+    Policy,
+    PreCreditTax,
+    TaxableIncome,
+    TaxUnit,
+)
 from ..params import param
+from .deduction_rules import compute_deductions
 
 
 def compute_agi(
@@ -26,13 +33,15 @@ def compute_agi(
     return max(0.0, gross_income - adjustments)
 
 
-def compute_taxable_income(unit: TaxUnit, policy: Policy, agi: float) -> float:
-    # Standard deduction
-    std_ded = param(policy, "standard_deduction", unit.filing_status.value)
-
-    # Itemized deductions are not part of TaxUnit, so only the standard
-    # deduction is available on this path.
-    return max(0.0, agi - std_ded)
+def compute_taxable_income(
+    unit: TaxUnit, policy: Policy, agi: float
+) -> TaxableIncome:
+    """Apply the larger of the standard and itemized deductions."""
+    deductions = compute_deductions(unit, policy, agi)
+    return TaxableIncome(
+        amount=max(0.0, agi - deductions.used),
+        deductions=deductions,
+    )
 
 
 def _bracket_tax(amount: float, brackets) -> float:

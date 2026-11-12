@@ -322,11 +322,18 @@ If you change `compute_taxable_income` directly, you silently change 2023 and
 File: `taxcalc/rules/base_rules.py`
 
 ```python
+from dataclasses import replace
+
+from taxcalc.models import TaxableIncome
+from taxcalc.rules.deduction_rules import compute_deductions
+
+
 def compute_taxable_income_2025(
     unit: TaxUnit, policy: Policy, agi: float
-) -> float:
+) -> TaxableIncome:
     """Standard deduction, reduced above a phase-out threshold."""
-    std_ded = param(policy, "standard_deduction", unit.filing_status.value)
+    deductions = compute_deductions(unit, policy, agi)
+    std_ded = deductions.standard
 
     phaseout_start = param(policy, "standard_deduction_phaseout_start")
     phaseout_rate = param(policy, "standard_deduction_phaseout_rate")
@@ -335,7 +342,11 @@ def compute_taxable_income_2025(
         reduction = (agi - phaseout_start) * phaseout_rate
         std_ded = max(0.0, std_ded - reduction)
 
-    return max(0.0, agi - std_ded)
+    deductions = replace(deductions, standard=std_ded)
+    return TaxableIncome(
+        amount=max(0.0, agi - deductions.used),
+        deductions=deductions,
+    )
 ```
 
 Notice what it does **not** do: it contains no dollar amounts. All numbers come
@@ -422,15 +433,18 @@ The four income functions have fixed signatures:
 
 ```python
 compute_agi(unit, policy, capital) -> float
-compute_taxable_income(unit, policy, agi) -> float
+compute_taxable_income(unit, policy, agi) -> TaxableIncome
 compute_pre_credit_tax(unit, policy, taxable_income, capital) -> PreCreditTax
 compute_credits(unit, policy, pre_credit_tax) -> float
 ```
 
-`capital` is the `CapitalGainDetail` returned by the Schedule D worksheet;
-`pre_credit_tax` is the `.total` of the returned `PreCreditTax`. The split
-(ordinary vs. preferential income and tax) is carried on `PreCreditTax`, so a
-rule change that affects only one part still reports both.
+`capital` is the `CapitalGainDetail` returned by the Schedule D worksheet.
+`compute_taxable_income` returns `TaxableIncome`, which pairs the amount with
+a `DeductionDetail` (the standard deduction, each allowed Schedule A category,
+and the section 68 limitation), so the pipeline can report the deduction
+breakdown. `pre_credit_tax` is the `.total` of the returned `PreCreditTax`. The
+split (ordinary vs. preferential income and tax) is carried on `PreCreditTax`,
+so a rule change that affects only one part still reports both.
 
 `compute_credits` does **not** receive AGI. Adding AGI to the credit rule is a
 change to the **shared call contract**, not just to the new function. Two things
@@ -645,7 +659,8 @@ For a year where **numbers and a rule change**:
 ## Checklist
 
 - [ ] Every `yearly` parameter for the tax has a 2025 version, including
-      `capital_gain_brackets`.
+      `capital_gain_brackets` and `salt_cap`.  Parameters for a provision that
+      starts later (for example `charitable_floor` in 2026) do not need one.
 - [ ] `since` parameters that are unchanged were left alone (this includes
       `capital_loss_limit`, which is statutory and not indexed).
 - [ ] New parameters use `since(2025, ...)`.

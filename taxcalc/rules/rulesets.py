@@ -4,7 +4,13 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Callable, Dict, List, Optional, Tuple
 
-from ..models import CapitalGainDetail, Policy, PreCreditTax, TaxUnit
+from ..models import (
+    CapitalGainDetail,
+    Policy,
+    PreCreditTax,
+    TaxableIncome,
+    TaxUnit,
+)
 from ..pack import LawPack, default_pack
 from ..params import NoEffectiveVersionError, select, validate
 from . import base_rules
@@ -15,7 +21,7 @@ class RuleSet:
     """One snapshot of the rules for a tax, effective over a date range."""
     effective: Tuple[date, date]
     compute_agi: Callable[[TaxUnit, Policy, CapitalGainDetail], float]
-    compute_taxable_income: Callable[[TaxUnit, Policy, float], float]
+    compute_taxable_income: Callable[[TaxUnit, Policy, float], TaxableIncome]
     compute_pre_credit_tax: Callable[
         [TaxUnit, Policy, float, CapitalGainDetail], PreCreditTax
     ]

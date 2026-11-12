@@ -15,6 +15,7 @@ from taxcalc import (
     EXAMPLE_PACK,
     FilingStatus,
     Income,
+    ItemizedDeductions,
     LawPack,
     MissingParameterError,
     NoEffectiveVersionError,
@@ -24,10 +25,12 @@ from taxcalc import (
     UnsupportedInputError,
     build_policy,
     check_coverage,
+    compute_deductions,
     compute_return,
     compute_tax,
     get_ruleset,
     load_pack,
+    optional_param,
     param,
     resolve,
     since,
@@ -607,6 +610,176 @@ def test_age_65_stops_the_calculation() -> None:
     } <= {issue.code for issue in result.coverage}
 
 
+def deduction_policy(**overrides) -> Policy:
+    """A 2026 policy with the Schedule A parameters, for rule-level tests."""
+    parameters = {
+        "standard_deduction": {"single": [16100]},
+        "brackets": {"single": [
+            (0.10, 12400),
+            (0.12, 50400),
+            (0.22, 105700),
+            (0.24, 201775),
+            (0.32, 256225),
+            (0.35, 640600),
+            (0.37, float("inf")),
+        ]},
+        "medical_expense_floor": {"default": [0.075]},
+        "salt_cap": {"single": [40400]},
+        "salt_cap_phaseout_threshold": {"single": [505000]},
+        "salt_cap_phaseout_rate": {"default": [0.30]},
+        "salt_cap_floor": {"single": [10000]},
+        "charitable_cash_limit": {"default": [0.60]},
+        "charitable_floor": {"default": [0.005]},
+        "itemized_deduction_limit_rate": {"default": [2 / 37]},
+    }
+    parameters.update(overrides)
+    return Policy(
+        year=2026,
+        jurisdiction="federal",
+        tax="income",
+        parameters=parameters,
+    )
+
+
+def test_itemized_deductions_beat_the_standard_deduction() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=40),
+        income=Income(wages_w2=200_000),
+        itemized=ItemizedDeductions(
+            state_local_income_taxes=12_000,
+            real_estate_taxes=8_000,
+            mortgage_interest=15_000,
+            cash_contributions_50pct_orgs=10_000,
+        ),
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = compute_tax(unit, build_policy("federal", "income", 2024))
+
+    deductions = result.deductions
+    assert deductions is not None
+    assert deductions.standard == 14_600.0
+    assert deductions.state_local_taxes == 10_000.0
+    assert deductions.mortgage_interest == 15_000.0
+    assert deductions.charitable == 10_000.0
+    assert deductions.itemized == 35_000.0
+    assert deductions.used == 35_000.0
+    assert deductions.is_itemizing
+    assert result.taxable_income == 165_000.0
+    assert result.pre_credit_tax == 32_642.5
+
+
+def test_standard_deduction_wins_when_itemized_is_smaller() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=40),
+        income=Income(wages_w2=100_000),
+        itemized=ItemizedDeductions(state_local_income_taxes=2_000),
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = compute_tax(unit, build_policy("federal", "income", 2024))
+
+    assert result.deductions.itemized == 2_000.0
+    assert result.deductions.used == 14_600.0
+    assert not result.deductions.is_itemizing
+    assert result.taxable_income == 85_400.0
+
+
+def test_medical_expenses_use_the_agi_floor() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=40),
+        income=Income(wages_w2=100_000),
+        itemized=ItemizedDeductions(medical_dental_expenses=20_000),
+    )
+    # 20,000 - 7.5% x 100,000
+    assert compute_deductions(
+        unit, build_policy("federal", "income", 2024), 100_000
+    ).medical == 12_500.0
+
+
+def test_salt_cap_phases_down_for_high_income() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=40),
+        income=Income(wages_w2=550_000),
+        itemized=ItemizedDeductions(state_local_income_taxes=48_000),
+    )
+    # 40,400 - 30% x (550,000 - 505,000)
+    detail = compute_deductions(unit, deduction_policy(), 550_000)
+    assert detail.state_local_taxes == 26_900.0
+
+
+def test_charitable_floor_and_section_68_limitation() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=40),
+        income=Income(wages_w2=700_000),
+        itemized=ItemizedDeductions(
+            state_local_income_taxes=50_000,
+            mortgage_interest=40_000,
+            cash_contributions_50pct_orgs=19_600,
+        ),
+    )
+    detail = compute_deductions(unit, deduction_policy(), 700_000)
+
+    # SALT phases down to the $10,000 floor.
+    assert detail.state_local_taxes == 10_000.0
+    # 19,600 - 0.5% x 700,000
+    assert detail.charitable == 16_100.0
+    # 2/37 x (700,000 - 640,600), capped at the deductions themselves.
+    assert round(detail.limitation, 2) == 3_210.81
+    assert round(detail.itemized, 2) == 62_889.19
+
+
+def test_itemized_parameters_resolve_from_the_catalog() -> None:
+    policy = build_policy("federal", "income", 2024)
+    assert param(policy, "salt_cap", "single") == 10_000
+    assert param(policy, "salt_cap", "married_separate") == 5_000
+    assert param(policy, "medical_expense_floor") == 0.075
+    assert param(policy, "charitable_cash_limit") == 0.60
+    # Provisions that start later are absent, not defaulted.
+    assert optional_param(policy, "salt_cap_phaseout_threshold") is None
+    assert optional_param(policy, "itemized_deduction_limit_rate") is None
+
+
+def test_itemized_deductions_reject_negative_amounts() -> None:
+    try:
+        ItemizedDeductions(medical_dental_expenses=-1)
+    except ValueError as exc:
+        assert "medical_dental_expenses" in str(exc)
+    else:
+        raise AssertionError("expected a negative deduction to raise")
+
+
+def test_itemized_coverage_checks() -> None:
+    policies = {"income": build_policy("federal", "income", 2024)}
+    unit = TaxUnit(
+        filing_status=FilingStatus.SINGLE,
+        primary=Person(age=40),
+        income=Income(wages_w2=100_000),
+        itemized=ItemizedDeductions(
+            mortgage_interest=10_000,
+            noncash_contributions=5_000,
+        ),
+    )
+    codes = {issue.code for issue in check_coverage(unit, policies)}
+    assert codes == {
+        "mortgage-debt-limit-unmodeled",
+        "noncash-charity-limit-unmodeled",
+    }
+
+    unit.itemized = ItemizedDeductions(casualty_theft_losses=1_000)
+    try:
+        compute_return(unit, policies)
+    except UnsupportedInputError as exc:
+        assert "casualty-loss-unmodeled" in str(exc)
+    else:
+        raise AssertionError("expected an unsupported casualty loss")
+
+
 def main() -> None:
     tests = [
         test_resolve_by_year,
@@ -635,6 +808,14 @@ def main() -> None:
         test_income_input_validation,
         test_unsupported_input_error_message,
         test_age_65_stops_the_calculation,
+        test_itemized_deductions_beat_the_standard_deduction,
+        test_standard_deduction_wins_when_itemized_is_smaller,
+        test_medical_expenses_use_the_agi_floor,
+        test_salt_cap_phases_down_for_high_income,
+        test_charitable_floor_and_section_68_limitation,
+        test_itemized_parameters_resolve_from_the_catalog,
+        test_itemized_deductions_reject_negative_amounts,
+        test_itemized_coverage_checks,
         test_ruleset_reuse,
         test_ruleset_no_fallback,
         test_override_changes_result,

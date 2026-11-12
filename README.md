@@ -119,6 +119,7 @@ or remembered.
 | Federal income tax | Tax years 2023–2024, illustrative values |
 | Capital gains and losses | Short/long-term netting, `$3,000` loss limit (`$1,500` MFS), 0/15/20% rates on gains and qualified dividends |
 | Capital loss carryforward | Entered as an input (`Income.*_capital_loss_carryforward`); reported back on `TaxResult.capital_gains`; no state is kept |
+| Itemized deductions | `TaxUnit.itemized` adds Schedule A amounts. Medical 7.5%-of-AGI floor, SALT cap (including the 2025+ phase-down), mortgage interest as entered, charitable 60%-of-AGI limit with the 2026+ 0.5% floor, and the 2026+ section 68 2/37 limitation. The larger of standard and itemized is used. |
 | Net Investment Income Tax (NIIT) | Parameters since 2013; used with 2023–2024 income |
 | Add-on taxes | Pluggable through a law pack (`niit` is wired in the example) |
 | Coverage checks | Populated inputs that are only partly modeled are listed on `ReturnResult.coverage` and emitted as warnings |
@@ -174,6 +175,7 @@ taxcalc/
   rules/
     base_rules.py    # AGI -> taxable income -> pre-credit tax -> credits
     capital_gain_rules.py  # Schedule D netting and the capital-loss limit
+    deduction_rules.py     # Schedule A: itemized deductions and limits
     niit_rules.py    # Net Investment Income Tax
     rulesets.py      # RuleSet and the example rule registry
   coverage.py        # input coverage checks (warn or stop)

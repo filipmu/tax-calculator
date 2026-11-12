@@ -110,11 +110,9 @@ def compute_return(
     capital = compute_capital_gains(unit, income_policy)
 
     agi = rules.compute_agi(unit, income_policy, capital)
-    taxable_income = rules.compute_taxable_income(
-        unit, income_policy, agi
-    )
+    taxable = rules.compute_taxable_income(unit, income_policy, agi)
     pre_credit_tax = rules.compute_pre_credit_tax(
-        unit, income_policy, taxable_income, capital
+        unit, income_policy, taxable.amount, capital
     )
     total_credits = rules.compute_credits(
         unit, income_policy, pre_credit_tax.total
@@ -123,7 +121,7 @@ def compute_return(
 
     income_result = TaxResult(
         agi=agi,
-        taxable_income=taxable_income,
+        taxable_income=taxable.amount,
         pre_credit_tax=pre_credit_tax.total,
         total_credits=total_credits,
         net_tax=net_tax,
@@ -132,6 +130,7 @@ def compute_return(
         ordinary_tax=pre_credit_tax.ordinary_tax,
         preferential_tax=pre_credit_tax.preferential_tax,
         capital_gains=capital,
+        deductions=taxable.deductions,
     )
 
     if coverage != "off":

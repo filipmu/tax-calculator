@@ -96,6 +96,9 @@ class TaxUnit:
     income: Income 
     spouse: Person | None = None
     dependents: List[Person] = field(default_factory=list)
+    # Schedule A amounts.  None means no itemized deductions were entered, so
+    # the standard deduction applies.
+    itemized: "ItemizedDeductions | None" = None
 
 
 
@@ -219,6 +222,13 @@ class ItemizedDeductions:
     casualty_theft_losses: float = 0.0
     gambling_losses: float = 0.0  # Limited to gambling winnings
 
+    def __post_init__(self) -> None:
+        for name, value in vars(self).items():
+            if value < 0:
+                raise ValueError(
+                    f"{name} must be a positive amount; got {value}"
+                )
+
 
 @dataclass
 class AMTAdjustments:
@@ -340,6 +350,52 @@ class PreCreditTax:
 
 
 @dataclass(frozen=True)
+class DeductionDetail:
+    """Standard deduction and the allowed Schedule A amounts.
+
+    Each field is the amount actually allowed after that category's limits
+    (medical floor, SALT cap, charitable percentage limit).  ``limitation`` is
+    the overall reduction under section 68.
+    """
+    standard: float = 0.0
+    medical: float = 0.0
+    state_local_taxes: float = 0.0
+    mortgage_interest: float = 0.0
+    charitable: float = 0.0
+    other: float = 0.0
+    limitation: float = 0.0
+
+    @property
+    def itemized(self) -> float:
+        """Itemized deductions allowed after the overall limitation."""
+        return max(
+            0.0,
+            self.medical
+            + self.state_local_taxes
+            + self.mortgage_interest
+            + self.charitable
+            + self.other
+            - self.limitation,
+        )
+
+    @property
+    def used(self) -> float:
+        """The larger of the standard and itemized deductions."""
+        return max(self.standard, self.itemized)
+
+    @property
+    def is_itemizing(self) -> bool:
+        return self.itemized > self.standard
+
+
+@dataclass(frozen=True)
+class TaxableIncome:
+    """Taxable income with the deduction detail that produced it."""
+    amount: float = 0.0
+    deductions: DeductionDetail = DeductionDetail()
+
+
+@dataclass(frozen=True)
 class CoverageIssue:
     """One input or result the active rules do not fully model.
 
@@ -364,6 +420,7 @@ class TaxResult:
     ordinary_tax: float = 0.0
     preferential_tax: float = 0.0
     capital_gains: CapitalGainDetail | None = None
+    deductions: DeductionDetail | None = None
 
 @dataclass
 class ReturnResult:
