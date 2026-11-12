@@ -1,12 +1,15 @@
+import math
+
 from ..models import (
     CapitalGainDetail,
+    CreditDetail,
     Policy,
     PreCreditTax,
     TaxableIncome,
     TaxUnit,
 )
 from ..params import param
-from .deduction_rules import compute_deductions
+from .deduction_rules import compute_deductions, compute_section_199a_deduction
 
 
 def compute_agi(
@@ -34,13 +37,18 @@ def compute_agi(
 
 
 def compute_taxable_income(
-    unit: TaxUnit, policy: Policy, agi: float
+    unit: TaxUnit, policy: Policy, agi: float, capital: CapitalGainDetail
 ) -> TaxableIncome:
-    """Apply the larger of the standard and itemized deductions."""
+    """Apply the larger of the standard and itemized deductions, then section 199A."""
     deductions = compute_deductions(unit, policy, agi)
+    taxable_before_qbi = max(0.0, agi - deductions.used)
+    section_199a = compute_section_199a_deduction(
+        unit, policy, taxable_before_qbi, capital
+    )
     return TaxableIncome(
-        amount=max(0.0, agi - deductions.used),
+        amount=max(0.0, taxable_before_qbi - section_199a),
         deductions=deductions,
+        section_199a_deduction=section_199a,
     )
 
 
@@ -102,12 +110,50 @@ def compute_pre_credit_tax(
     )
 
 
-def compute_credits(unit: TaxUnit, policy: Policy, pre_credit_tax: float) -> float:
-    # Count dependents under 17 (placeholder logic)
+def compute_credits(
+    unit: TaxUnit, policy: Policy, pre_credit_tax: float, agi: float
+) -> CreditDetail:
+    """Child tax credit, other-dependent credit, and foreign tax credit.
+
+    Section 24 treats the child credit and the $500 credit for other
+    dependents as one family credit.  The combined amount is reduced by $50
+    for each $1,000 (or fraction) by which modified AGI exceeds the filing
+    status threshold.  All credits here are nonrefundable; the refundable
+    additional child tax credit is not modeled.
+    """
     qualifying_children = sum(1 for d in unit.dependents if d.age < 17)
+    other_dependents = sum(1 for d in unit.dependents if d.age >= 17)
 
-    # Simple, non-refundable child credit
-    ctc = qualifying_children * param(policy, "child_credit_amount")
+    child_credit = qualifying_children * param(policy, "child_credit_amount")
+    other_credit = other_dependents * param(
+        policy, "other_dependent_credit_amount"
+    )
+    family_before_phaseout = child_credit + other_credit
 
-    # Non-refundable: cannot exceed pre-credit tax
-    return min(ctc, pre_credit_tax)
+    threshold = param(
+        policy, "child_credit_phaseout_start", unit.filing_status.value
+    )
+    step = param(policy, "child_credit_phaseout_step")
+    reduction = param(policy, "child_credit_phaseout_reduction")
+
+    excess = max(0.0, agi - threshold)
+    # A tiny epsilon keeps an exact multiple from being rounded up by floating
+    # point error.
+    increments = math.ceil(excess / step - 1e-9) if excess > 0.0 else 0
+    phaseout = min(family_before_phaseout, increments * reduction)
+    family_credit = max(0.0, family_before_phaseout - phaseout)
+
+    total_before_limit = family_credit + unit.foreign_tax_credit
+    allowed = min(total_before_limit, pre_credit_tax)
+
+    return CreditDetail(
+        qualifying_children=qualifying_children,
+        other_dependents=other_dependents,
+        child_credit_before_phaseout=child_credit,
+        other_dependent_credit_before_phaseout=other_credit,
+        family_credit_before_phaseout=family_before_phaseout,
+        family_credit_phaseout=phaseout,
+        family_credit=family_credit,
+        foreign_tax_credit=unit.foreign_tax_credit,
+        allowed=allowed,
+    )

@@ -164,18 +164,20 @@ def single_unit(**income_fields) -> TaxUnit:
 def test_income_2023_regression() -> None:
     result = compute_tax(make_taxpayer(), build_policy("federal", "income", 2023))
     # The $100,000 long-term gain and $45,000 of qualified dividends are now
-    # taxed at preferential rates instead of ordinary rates.
+    # taxed at preferential rates instead of ordinary rates.  The $4,000
+    # tentative child credit is fully phased out at this AGI.
     assert result.pre_credit_tax == 101971.0
-    assert result.total_credits == 4000.0
-    assert result.net_tax == 97971.0
+    assert result.total_credits == 0.0
+    assert result.net_tax == 101971.0
     assert result.preferential_taxable_income == 145000.0
     assert result.ordinary_taxable_income == 407300.0
+    assert result.credits.family_credit_phaseout == 4000.0
 
 
 def test_income_2024() -> None:
     result = compute_tax(make_taxpayer(), build_policy("federal", "income", 2024))
     assert result.pre_credit_tax == 106979.0
-    assert result.net_tax == 102979.0
+    assert result.net_tax == 106979.0
     assert result.preferential_tax == 21750.0
     assert result.ordinary_tax == 85229.0
 
@@ -229,14 +231,17 @@ def test_ruleset_no_fallback() -> None:
 
 
 def test_override_changes_result() -> None:
-    base = compute_tax(make_taxpayer(), build_policy("federal", "income", 2024))
+    unit = single_unit(wages_w2=100_000)
+    unit.dependents.append(Person(age=5, relationship="child"))
+    base = compute_tax(unit, build_policy("federal", "income", 2024))
     hypothetical = build_policy(
         "federal", "income", 2024,
         overrides={"child_credit_amount": {"default": [4000]}},
     )
-    changed = compute_tax(make_taxpayer(), hypothetical)
-    assert changed.total_credits == 8000.0
-    assert changed.net_tax == base.net_tax - 4000.0
+    changed = compute_tax(unit, hypothetical)
+    assert base.total_credits == 2000.0
+    assert changed.total_credits == 4000.0
+    assert changed.net_tax == base.net_tax - 2000.0
 
 
 def test_example_pack_is_not_authoritative() -> None:
@@ -280,7 +285,7 @@ def test_authoritative_pack_does_not_warn() -> None:
             coverage="off",
         )
     assert not caught
-    assert result.net_tax == 102979.0
+    assert result.net_tax == 106979.0
 
 
 def test_pack_replaces_example_catalog() -> None:
@@ -518,7 +523,6 @@ def test_coverage_reports_partial_inputs() -> None:
         "other-sched-1-unmodeled",
         "amt-unmodeled",
         "social-security-taxability-unmodeled",
-        "dependent-credit-unmodeled",
     }
     assert all(issue.severity == "warning" for issue in issues)
 
@@ -543,6 +547,213 @@ def test_refundable_ctc_is_flagged() -> None:
         issue.code for issue in result.coverage
     }
     assert result.parts["income"] == 0.0
+
+
+def test_ctc_phaseout_reduces_the_family_credit() -> None:
+    unit = single_unit(wages_w2=210_000)
+    unit.dependents.append(Person(age=5, relationship="child"))
+    result = compute_tax(unit, build_policy("federal", "income", 2024))
+
+    credits = result.credits
+    assert credits.qualifying_children == 1
+    assert credits.family_credit_before_phaseout == 2_000.0
+    # $10,000 over the $200,000 threshold = 10 increments x $50.
+    assert credits.family_credit_phaseout == 500.0
+    assert credits.family_credit == 1_500.0
+    assert result.total_credits == 1_500.0
+
+
+def test_ctc_phaseout_rounds_up_partial_thousands() -> None:
+    unit = single_unit(wages_w2=200_500)
+    unit.dependents.append(Person(age=5, relationship="child"))
+    result = compute_tax(unit, build_policy("federal", "income", 2024))
+
+    # $500 over the threshold is one $1,000 increment.
+    assert result.credits.family_credit_phaseout == 50.0
+    assert result.credits.family_credit == 1_950.0
+
+
+def test_other_dependent_credit_matches_the_spreadsheet() -> None:
+    unit = single_unit(wages_w2=100_000)
+    unit.dependents = [
+        Person(age=17, relationship="child"),
+        Person(age=19, relationship="child"),
+    ]
+    result = compute_tax(unit, build_policy("federal", "income", 2024))
+
+    credits = result.credits
+    assert credits.qualifying_children == 0
+    assert credits.other_dependents == 2
+    assert credits.child_credit_before_phaseout == 0.0
+    assert credits.other_dependent_credit_before_phaseout == 1_000.0
+    assert credits.family_credit == 1_000.0
+    assert result.total_credits == 1_000.0
+
+
+def test_mixed_child_and_other_dependent() -> None:
+    unit = single_unit(wages_w2=100_000)
+    unit.dependents = [
+        Person(age=5, relationship="child"),
+        Person(age=18, relationship="child"),
+    ]
+    result = compute_tax(unit, build_policy("federal", "income", 2024))
+
+    credits = result.credits
+    assert credits.qualifying_children == 1
+    assert credits.other_dependents == 1
+    assert credits.child_credit_before_phaseout == 2_000.0
+    assert credits.other_dependent_credit_before_phaseout == 500.0
+    assert credits.family_credit == 2_500.0
+
+
+def test_other_dependent_credit_is_part_of_the_phaseout() -> None:
+    unit = single_unit(wages_w2=210_000)
+    unit.dependents = [
+        Person(age=17, relationship="child"),
+        Person(age=19, relationship="child"),
+    ]
+    result = compute_tax(unit, build_policy("federal", "income", 2024))
+
+    # The $1,000 family credit is reduced by $500, not by a separate ODC rule.
+    assert result.credits.family_credit_before_phaseout == 1_000.0
+    assert result.credits.family_credit_phaseout == 500.0
+    assert result.credits.family_credit == 500.0
+
+
+def test_section_199a_reit_deduction() -> None:
+    unit = single_unit(
+        wages_w2=100_000,
+        ordinary_dividends=5_000,
+        qualified_reit_income=2_000,
+    )
+    result = compute_tax(unit, build_policy("federal", "income", 2024))
+
+    assert result.agi == 105_000.0
+    # 20% x 2,000 REIT income, well inside the overall limitation.
+    assert result.section_199a_deduction == 400.0
+    assert result.taxable_income == 90_000.0
+
+
+def test_section_199a_limit_uses_net_capital_gain() -> None:
+    unit = single_unit(
+        wages_w2=10_000,
+        ordinary_dividends=20_000,
+        qualified_reit_income=20_000,
+        long_term_capital_gain_loss=50_000,
+    )
+    result = compute_tax(unit, build_policy("federal", "income", 2024))
+
+    assert result.agi == 80_000.0
+    # 20% x (65,400 taxable before QBI - 50,000 net capital gain) = 3,080,
+    # which is below the tentative 20% x 20,000 = 4,000.
+    assert result.section_199a_deduction == 3_080.0
+    assert result.taxable_income == 62_320.0
+
+
+def test_foreign_tax_credit_is_applied() -> None:
+    unit = single_unit(wages_w2=100_000)
+    unit.foreign_tax_credit = 500
+    result = compute_tax(unit, build_policy("federal", "income", 2024))
+
+    assert result.credits.foreign_tax_credit == 500.0
+    assert result.credits.allowed == 500.0
+    assert result.total_credits == 500.0
+
+
+def test_foreign_tax_credit_is_limited_to_tax() -> None:
+    unit = single_unit(wages_w2=10_000)
+    unit.foreign_tax_credit = 500
+    result = compute_tax(unit, build_policy("federal", "income", 2024))
+
+    assert result.pre_credit_tax == 0.0
+    assert result.credits.foreign_tax_credit == 500.0
+    assert result.credits.allowed == 0.0
+    assert result.total_credits == 0.0
+
+
+def test_credit_and_reit_parameters_resolve() -> None:
+    policy = build_policy("federal", "income", 2024)
+    assert param(policy, "child_credit_phaseout_start", "single") == 200_000
+    assert (
+        param(policy, "child_credit_phaseout_start", "married_joint")
+        == 400_000
+    )
+    assert param(policy, "child_credit_phaseout_step") == 1_000
+    assert param(policy, "child_credit_phaseout_reduction") == 50
+    assert param(policy, "other_dependent_credit_amount") == 500
+    assert param(policy, "section_199a_rate") == 0.20
+
+
+def test_reit_and_foreign_credit_input_validation() -> None:
+    try:
+        Income(ordinary_dividends=1_000, qualified_reit_income=2_000)
+    except ValueError as exc:
+        assert "qualified_reit_income" in str(exc)
+    else:
+        raise AssertionError("expected REIT income above dividends to raise")
+
+    try:
+        Income(qualified_reit_income=-1)
+    except ValueError as exc:
+        assert "qualified_reit_income" in str(exc)
+    else:
+        raise AssertionError("expected negative REIT income to raise")
+
+    try:
+        TaxUnit(
+            filing_status=FilingStatus.SINGLE,
+            primary=Person(age=40),
+            income=Income(),
+            foreign_tax_credit=-1,
+        )
+    except ValueError as exc:
+        assert "foreign_tax_credit" in str(exc)
+    else:
+        raise AssertionError("expected negative foreign credit to raise")
+
+
+def test_foreign_tax_credit_coverage() -> None:
+    unit = single_unit(wages_w2=100_000)
+    unit.foreign_tax_credit = 500
+    policies = {"income": build_policy("federal", "income", 2024)}
+    codes = {issue.code for issue in check_coverage(unit, policies)}
+    assert "foreign-tax-credit-limit-unmodeled" in codes
+
+
+def test_spreadsheet_like_return_with_odc_reit_and_ftc() -> None:
+    unit = TaxUnit(
+        filing_status=FilingStatus.MARRIED_JOINT,
+        primary=Person(age=59),
+        spouse=Person(age=56),
+        dependents=[
+            Person(age=22, full_time_student=True),
+            Person(age=19, full_time_student=True),
+        ],
+        income=Income(
+            wages_w2=69_913,
+            qualified_dividends=39_434,
+            taxable_interest=4_474,
+            ordinary_dividends=53_134,
+            long_term_capital_gain_loss=99_650,
+            other_sched_1=163,
+            qualified_reit_income=2_350,
+        ),
+        foreign_tax_credit=484,
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        result = compute_tax(
+            unit, build_policy("federal", "income", 2024)
+        )
+
+    # The two dependents are 17 or older, so they produce the $500 ODC each.
+    assert result.credits.qualifying_children == 0
+    assert result.credits.other_dependent_credit_before_phaseout == 1_000.0
+    assert result.credits.family_credit == 1_000.0
+    assert result.credits.foreign_tax_credit == 484.0
+    assert result.credits.allowed == 1_484.0
+    # 20% x 2,350 qualified REIT income.
+    assert result.section_199a_deduction == 470.0
 
 
 def test_coverage_mode_is_validated() -> None:
@@ -969,6 +1180,19 @@ def main() -> None:
         test_capital_loss_carryforward_round_trip,
         test_coverage_reports_partial_inputs,
         test_refundable_ctc_is_flagged,
+        test_ctc_phaseout_reduces_the_family_credit,
+        test_ctc_phaseout_rounds_up_partial_thousands,
+        test_other_dependent_credit_matches_the_spreadsheet,
+        test_mixed_child_and_other_dependent,
+        test_other_dependent_credit_is_part_of_the_phaseout,
+        test_section_199a_reit_deduction,
+        test_section_199a_limit_uses_net_capital_gain,
+        test_foreign_tax_credit_is_applied,
+        test_foreign_tax_credit_is_limited_to_tax,
+        test_credit_and_reit_parameters_resolve,
+        test_reit_and_foreign_credit_input_validation,
+        test_foreign_tax_credit_coverage,
+        test_spreadsheet_like_return_with_odc_reit_and_ftc,
         test_coverage_mode_is_validated,
         test_income_input_validation,
         test_unsupported_input_error_message,

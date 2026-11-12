@@ -323,6 +323,32 @@ PARAMETERS: Dict[Tuple[str, str, str], List[Parameter]] = {
     ("federal", "income", "child_credit_amount"): [
         since(2023, {"default": [2000]}),
     ],
+    # Section 24 family credit.  The child credit and the $500-per-dependent
+    # other-dependent credit phase out together, by $50 for each $1,000 (or
+    # fraction) of modified AGI above the threshold.  The thresholds are
+    # statutory and not indexed.
+    ("federal", "income", "child_credit_phaseout_start"): [
+        since(2023, {
+            "single": [200000],
+            "married_joint": [400000],
+            "married_separate": [200000],
+            "head_of_household": [200000],
+            "qualifying_widow": [200000],
+        }),
+    ],
+    ("federal", "income", "child_credit_phaseout_step"): [
+        since(2023, {"default": [1000]}),
+    ],
+    ("federal", "income", "child_credit_phaseout_reduction"): [
+        since(2023, {"default": [50]}),
+    ],
+    ("federal", "income", "other_dependent_credit_amount"): [
+        since(2023, {"default": [500]}),
+    ],
+    # Section 199A deduction rate for qualified REIT dividends / PTP income.
+    ("federal", "income", "section_199a_rate"): [
+        since(2018, {"default": [0.20]}),
+    ],
     ("federal", "niit", "niit_rate"): [
         since(2013, {"default": [0.038]}),
     ],

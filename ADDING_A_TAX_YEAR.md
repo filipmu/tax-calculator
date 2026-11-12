@@ -324,12 +324,15 @@ File: `taxcalc/rules/base_rules.py`
 ```python
 from dataclasses import replace
 
-from taxcalc.models import TaxableIncome
+from taxcalc.models import CapitalGainDetail, TaxableIncome
 from taxcalc.rules.deduction_rules import compute_deductions
 
 
 def compute_taxable_income_2025(
-    unit: TaxUnit, policy: Policy, agi: float
+    unit: TaxUnit,
+    policy: Policy,
+    agi: float,
+    capital: CapitalGainDetail,
 ) -> TaxableIncome:
     """Standard deduction, reduced above a phase-out threshold."""
     deductions = compute_deductions(unit, policy, agi)
@@ -453,25 +456,32 @@ The four income functions have fixed signatures:
 
 ```python
 compute_agi(unit, policy, capital) -> float
-compute_taxable_income(unit, policy, agi) -> TaxableIncome
+compute_taxable_income(unit, policy, agi, capital) -> TaxableIncome
 compute_pre_credit_tax(unit, policy, taxable_income, capital) -> PreCreditTax
-compute_credits(unit, policy, pre_credit_tax) -> float
+compute_credits(unit, policy, pre_credit_tax, agi) -> CreditDetail
 ```
 
 `capital` is the `CapitalGainDetail` returned by the Schedule D worksheet.
 `compute_taxable_income` returns `TaxableIncome`, which pairs the amount with
 a `DeductionDetail` (the standard deduction, each allowed Schedule A category,
-and the section 68 limitation), so the pipeline can report the deduction
-breakdown. `pre_credit_tax` is the `.total` of the returned `PreCreditTax`. The
-split (ordinary vs. preferential income and tax) is carried on `PreCreditTax`,
-so a rule change that affects only one part still reports both.
+and the section 68 limitation) plus the section 199A deduction, so the pipeline
+can report the deduction breakdown. `pre_credit_tax` is the `.total` of the
+returned `PreCreditTax`. The split (ordinary vs. preferential income and tax)
+is carried on `PreCreditTax`, so a rule change that affects only one part still
+reports both.
 
-`compute_credits` does **not** receive AGI. Adding AGI to the credit rule is a
-change to the **shared call contract**, not just to the new function. Two things
-are involved:
+`compute_credits` returns a `CreditDetail`. It needs AGI because the child tax
+credit and the credit for other dependents phase out above a filing-status
+threshold. `CreditDetail.total` is the amount actually applied after the
+nonrefundable limit; the other fields show the tentative family credit, the
+phase-out, the foreign tax credit, and the allowed total.
 
-- **Logic is per-era.** The 2023-2024 `compute_credits` must keep doing exactly
-  what it did. You do not rewrite its logic.
+Adding AGI to the credit rule (or capital to the taxable-income rule) is a
+change to the **shared call contract**, not just to the new function. Two
+things are involved:
+
+- **Logic is per-era.** An old `compute_credits` must keep doing exactly what
+  it did. You do not rewrite its logic.
 - **The call is shared.** `compute_return` calls one signature for every era.
   If that signature gains an argument, every function the pipeline can reach
   must accept it, even if the old ones ignore it.
@@ -492,6 +502,7 @@ touched old code:
 ```python
 def compute_credits(unit, policy, pre_credit_tax, agi):
     ...  # 2023-2024 logic; does not use agi
+    return CreditDetail(...)
 ```
 
 **Option 2 - adapter (keeps old functions unchanged).** Leave the 2023-2024
@@ -528,12 +539,13 @@ call in `compute_return`:
 
 ```python
 # RuleSet
-compute_credits: Callable[[TaxUnit, Policy, float, float], float]
+compute_credits: Callable[[TaxUnit, Policy, float, float], CreditDetail]
 
 # compute_return
-total_credits = rules.compute_credits(
+credits = rules.compute_credits(
     unit, income_policy, pre_credit_tax, agi
 )
+total_credits = credits.total
 ```
 
 For proto2, **Option 1** is the least machinery. Consider Option 3 only if

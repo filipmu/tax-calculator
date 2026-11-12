@@ -14,7 +14,6 @@ from typing import List, Mapping, Optional, Sequence
 
 from .models import CoverageIssue, Policy, TaxResult, TaxUnit
 from .pack import LawPack
-from .params import param
 
 
 class UnsupportedInputError(ValueError):
@@ -54,8 +53,8 @@ def check_coverage(
             code="other-sched-1-unmodeled",
             detail=(
                 "other_sched_1 is treated as ordinary income. Self-employment "
-                "tax, the QBI/section 199A deduction, and rental passive-loss "
-                "limits are not modeled."
+                "tax, any QBI/section 199A deduction on business income in "
+                "other_sched_1, and rental passive-loss limits are not modeled."
             ),
             severity="warning",
         ))
@@ -80,14 +79,13 @@ def check_coverage(
             severity="warning",
         ))
 
-    older_dependents = [d for d in unit.dependents if d.age >= 17]
-    if older_dependents:
+    if unit.foreign_tax_credit:
         issues.append(CoverageIssue(
-            code="dependent-credit-unmodeled",
+            code="foreign-tax-credit-limit-unmodeled",
             detail=(
-                f"{len(older_dependents)} dependent(s) are 17 or older. Only "
-                "the child tax credit for children under 17 is modeled; the "
-                "credit for other dependents is not."
+                "foreign_tax_credit is used as entered. The Form 1116 "
+                "limitation, foreign-source income, and carryover are not "
+                "recomputed."
             ),
             severity="warning",
         ))
@@ -246,15 +244,23 @@ def check_result_coverage(
     """Return caveats that depend on a computed income-tax result."""
     issues: List[CoverageIssue] = []
 
-    qualifying_children = sum(1 for d in unit.dependents if d.age < 17)
-    raw_credit = qualifying_children * param(policy, "child_credit_amount")
+    credits = result.credits
+    if credits is None or credits.qualifying_children == 0:
+        return issues
 
-    if raw_credit > result.pre_credit_tax:
+    # If the family credit exceeds the tax after the other nonrefundable
+    # credits, some of the child credit could be refundable as the additional
+    # child tax credit.  Model only the nonrefundable piece.
+    available_tax = max(
+        0.0, result.pre_credit_tax - credits.foreign_tax_credit
+    )
+    if credits.family_credit > available_tax:
         issues.append(CoverageIssue(
             code="refundable-ctc-unmodeled",
             detail=(
-                "the child tax credit is limited to the pre-credit tax. The "
-                "refundable additional child tax credit is not modeled."
+                "the child tax credit is limited to the available pre-credit "
+                "tax. The refundable additional child tax credit is not "
+                "modeled."
             ),
             severity="warning",
         ))

@@ -8,6 +8,9 @@ Each category is reported at the amount actually allowed, after its own limit:
 * charitable contributions under the percentage-of-AGI limit, plus the 0.5%
   floor that starts in 2026.
 
+The section 199A deduction for qualified REIT dividends is a separate
+below-the-line deduction; it is limited by taxable income less net capital gain.
+
 Starting in 2026, section 68 reduces total itemized deductions by 2/37 of the
 lesser of the deductions or the excess of income over the start of the 37%
 bracket.  The bracket start comes from the same ``brackets`` parameter used for
@@ -17,7 +20,7 @@ Losses that need facts the calculator does not hold (a federally declared
 disaster, gambling winnings) are not deducted; ``coverage.py`` reports them.
 """
 
-from ..models import DeductionDetail, Policy, TaxUnit
+from ..models import CapitalGainDetail, DeductionDetail, Policy, TaxUnit
 from ..params import optional_param, param
 
 
@@ -133,3 +136,31 @@ def compute_deductions(
         charitable=charitable,
         limitation=limitation,
     )
+
+
+def compute_section_199a_deduction(
+    unit: TaxUnit,
+    policy: Policy,
+    taxable_income_before_qbi: float,
+    capital: CapitalGainDetail,
+) -> float:
+    """Section 199A deduction for qualified REIT dividends and PTP income.
+
+    The tentative deduction is 20% of qualified REIT income.  Qualified REIT
+    dividends are not subject to the wage/capital limitation, but the
+    deduction is still limited to 20% of taxable income before the deduction
+    reduced by net capital gain (the Form 8995 overall limitation).
+    """
+    qualified_reit_income = unit.income.qualified_reit_income
+    if qualified_reit_income <= 0.0:
+        return 0.0
+
+    rate = param(policy, "section_199a_rate")
+    tentative = rate * qualified_reit_income
+
+    # Form 8995 uses net capital gain, which includes qualified dividends.
+    net_capital_gain = max(0.0, capital.preferential_income)
+    income_limit = rate * max(
+        0.0, taxable_income_before_qbi - net_capital_gain
+    )
+    return min(tentative, income_limit)

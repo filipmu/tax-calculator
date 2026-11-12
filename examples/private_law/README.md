@@ -55,6 +55,13 @@ The catalog includes a single-filer Minnesota example for 2024. Add the
 selectors and years you actually use; a missing one raises rather than falling
 back to another year.
 
+The federal inputs include `Income.qualified_reit_income` (1099-DIV box 5,
+a subset of ordinary dividends) and `TaxUnit.foreign_tax_credit` (the allowed
+Form 1116 credit). The pack must supply `section_199a_rate`,
+`child_credit_phaseout_start`, `child_credit_phaseout_step`,
+`child_credit_phaseout_reduction`, and `other_dependent_credit_amount` for the
+income rule to run.
+
 Every entry point takes `pack=` explicitly. The pack you pass is the only law
 used for that call; the package never falls back to the example pack.
 

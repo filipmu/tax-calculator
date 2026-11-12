@@ -6,6 +6,7 @@ from typing import Callable, Dict, List, Optional, Tuple
 
 from ..models import (
     CapitalGainDetail,
+    CreditDetail,
     Policy,
     PreCreditTax,
     TaxableIncome,
@@ -21,11 +22,13 @@ class RuleSet:
     """One snapshot of the rules for a tax, effective over a date range."""
     effective: Tuple[date, date]
     compute_agi: Callable[[TaxUnit, Policy, CapitalGainDetail], float]
-    compute_taxable_income: Callable[[TaxUnit, Policy, float], TaxableIncome]
+    compute_taxable_income: Callable[
+        [TaxUnit, Policy, float, CapitalGainDetail], TaxableIncome
+    ]
     compute_pre_credit_tax: Callable[
         [TaxUnit, Policy, float, CapitalGainDetail], PreCreditTax
     ]
-    compute_credits: Callable[[TaxUnit, Policy, float], float]
+    compute_credits: Callable[[TaxUnit, Policy, float, float], CreditDetail]
 
 
 # -----------------------------

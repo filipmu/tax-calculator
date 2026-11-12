@@ -99,8 +99,8 @@ The calculator refuses to guess. If a populated input is not fully modeled,
 `compute_return` reports it:
 
 - **warning** — the input is included but only partly modeled (for example,
-  `other_sched_1` is taxed as ordinary income, but self-employment tax and QBI
-  are not computed);
+  `other_sched_1` is taxed as ordinary income, but self-employment tax and any
+  QBI deduction on that business income are not computed);
 - **error** — the input is ignored entirely. With the default
   `coverage="raise"`, an error stops the calculation.
 
@@ -120,6 +120,9 @@ or remembered.
 | Capital gains and losses | Short/long-term netting, `$3,000` loss limit (`$1,500` MFS), 0/15/20% rates on gains and qualified dividends |
 | Capital loss carryforward | Entered as an input (`Income.*_capital_loss_carryforward`); reported back on `TaxResult.capital_gains`; no state is kept |
 | Itemized deductions | `TaxUnit.itemized` adds Schedule A amounts. Medical 7.5%-of-AGI floor, SALT cap (including the 2025+ phase-down), mortgage interest as entered, charitable 60%-of-AGI limit with the 2026+ 0.5% floor, and the 2026+ section 68 2/37 limitation. The larger of standard and itemized is used. |
+| Child and other-dependent credits | Section 24 family credit: the child credit for dependents under 17 plus `$500` per dependent age 17+, reduced by `$50` for each `$1,000` (or fraction) of AGI above `$200,000` (`$400,000` MFJ). Reported on `TaxResult.credits`. The refundable additional child tax credit is not modeled and is flagged when it could apply. |
+| Section 199A / REIT | `Income.qualified_reit_income` is the 1099-DIV box 5 subset of ordinary dividends. The calculator applies the 20% deduction, limited to 20% of taxable income before the deduction less net capital gain (the Form 8995 overall limitation). |
+| Foreign tax credit | `TaxUnit.foreign_tax_credit` is the allowed Form 1116 credit from the completed return, applied as a nonrefundable credit. The Form 1116 limitation, foreign-source income, and carryover are not recomputed and are flagged. |
 | Net Investment Income Tax (NIIT) | Parameters since 2013; used with 2023–2024 income |
 | Minnesota income tax | Form M1 from federal AGI: MN standard deduction with the high-income limitation, dependent exemptions with phase-out, and the U.S. government interest subtraction. Example values for 2023–2024; a private pack can add later years. MN itemized deductions (M1SA), the Social Security subtraction, additions, AMT, and credits are not modeled and are flagged. |
 | Add-on taxes | Pluggable through a law pack (`niit` and `MN` are wired in the example) |
@@ -173,6 +176,32 @@ Minnesota is an add-on tax keyed by `"MN"` in the policy mapping. Its rule
 receives the federal AGI from the income result and reports an `MNResult` in
 `ReturnResult.detail["MN"]`.
 
+Credits and the Section 199A deduction are inputs on the unit and income:
+
+```python
+unit = TaxUnit(
+    filing_status=FilingStatus.MARRIED_JOINT,
+    primary=Person(age=45),
+    spouse=Person(age=43),
+    dependents=[Person(age=5), Person(age=18)],
+    income=Income(
+        wages_w2=200_000,
+        ordinary_dividends=10_000,
+        qualified_reit_income=2_000,
+    ),
+    foreign_tax_credit=484,
+)
+
+result = compute_tax(unit, build_policy("federal", "income", 2024))
+print(result.credits.family_credit)          # child + other-dependent credit
+print(result.credits.foreign_tax_credit)     # allowed credit as entered
+print(result.section_199a_deduction)         # 20% REIT deduction
+```
+
+The child credit and the `$500` other-dependent credit phase out together
+above the filing-status threshold. The foreign tax credit is the allowed Form
+1116 amount; the calculator does not recompute the Form 1116 limitation.
+
 ## Repository layout
 
 ```
@@ -182,7 +211,7 @@ taxcalc/
   rules/
     base_rules.py    # AGI -> taxable income -> pre-credit tax -> credits
     capital_gain_rules.py  # Schedule D netting and the capital-loss limit
-    deduction_rules.py     # Schedule A: itemized deductions and limits
+    deduction_rules.py     # Schedule A, section 199A, and deduction limits
     mn_rules.py      # Minnesota Form M1 income tax
     niit_rules.py    # Net Investment Income Tax
     rulesets.py      # RuleSet and the example rule registry
@@ -219,9 +248,11 @@ python3 test_installation.py  # legacy calculator still imports and runs
 `test_proto2.py` currently covers parameter resolution, missing/overlapping
 years, the per-tax pipeline, capital-gain netting and 0/15/20% rates, the
 capital-loss limit and carryforward round trip, NIIT, itemized deductions,
-Minnesota income tax (including the Treasury subtraction, deduction limitation,
-and exemption phase-out), coverage checks, law-pack identity and warnings, pack
-replacement (no leakage), pluggable add-on taxes, and `load_pack`.
+child and other-dependent credit phase-out, Section 199A qualified REIT
+income, the foreign tax credit, Minnesota income tax (including the Treasury
+subtraction, deduction limitation, and exemption phase-out), coverage checks,
+law-pack identity and warnings, pack replacement (no leakage), pluggable add-on
+taxes, and `load_pack`.
 
 ## Documentation
 
@@ -238,6 +269,8 @@ replacement (no leakage), pluggable add-on taxes, and `load_pack`.
 This is a prototype. Deliberately out of scope for now:
 
 - Federal and Minnesota AMT in the new engine.
+- The refundable additional child tax credit and full Form 1116 foreign tax
+  credit computation.
 - Minnesota itemized deductions (Schedule M1SA) and the remaining Schedule M1M
   additions and subtractions.
 - Minnesota nonrefundable credits.

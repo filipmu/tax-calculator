@@ -61,6 +61,23 @@ PARAMETERS: Dict[Tuple[str, str, str], List[Parameter]] = {
     ("federal", "income", "child_credit_amount"): [
         since(2023, {"default": [2000]}),
     ],
+    ("federal", "income", "child_credit_phaseout_start"): [
+        since(2023, {
+            "single": [200000],
+        }),
+    ],
+    ("federal", "income", "child_credit_phaseout_step"): [
+        since(2023, {"default": [1000]}),
+    ],
+    ("federal", "income", "child_credit_phaseout_reduction"): [
+        since(2023, {"default": [50]}),
+    ],
+    ("federal", "income", "other_dependent_credit_amount"): [
+        since(2023, {"default": [500]}),
+    ],
+    ("federal", "income", "section_199a_rate"): [
+        since(2018, {"default": [0.20]}),
+    ],
     ("federal", "niit", "niit_rate"): [
         since(2013, {"default": [0.038]}),
     ],

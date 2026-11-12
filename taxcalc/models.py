@@ -47,6 +47,11 @@ class Income:
     qualified_dividends: float = 0.0   # Subset of ordinary_dividends
     ordinary_dividends: float = 0.0    # Includes qualified_dividends
 
+    # Section 199A qualified REIT dividends and PTP income (1099-DIV box 5).
+    # This is a subset of ordinary_dividends and is included in AGI through
+    # that field; it is used only to compute the section 199A deduction.
+    qualified_reit_income: float = 0.0
+
     # Form 1040, lines 4b, 5b, and 6b
     taxable_ira: float = 0.0
     taxable_pensions_annuities: float = 0.0
@@ -80,6 +85,16 @@ class Income:
                 "qualified_dividends cannot exceed ordinary_dividends: "
                 f"{self.qualified_dividends} > {self.ordinary_dividends}"
             )
+        if self.qualified_reit_income < 0:
+            raise ValueError(
+                "qualified_reit_income must be a positive amount; got "
+                f"{self.qualified_reit_income}"
+            )
+        if self.qualified_reit_income > self.ordinary_dividends:
+            raise ValueError(
+                "qualified_reit_income cannot exceed ordinary_dividends: "
+                f"{self.qualified_reit_income} > {self.ordinary_dividends}"
+            )
         if self.us_treasury_interest > self.taxable_interest:
             raise ValueError(
                 "us_treasury_interest cannot exceed taxable_interest: "
@@ -109,6 +124,10 @@ class TaxUnit:
     # Schedule A amounts.  None means no itemized deductions were entered, so
     # the standard deduction applies.
     itemized: "ItemizedDeductions | None" = None
+    # Nonrefundable foreign tax credit allowed on Form 1116, entered as a
+    # positive amount.  The calculator does not recompute the Form 1116
+    # limitation or carryover; the caller supplies the allowed credit.
+    foreign_tax_credit: float = 0.0
 
 
 
@@ -147,6 +166,12 @@ class TaxUnit:
         for dep in self.dependents:
             if dep.age < 0:
                 raise ValueError("Dependent ages must be non-negative")
+
+        if self.foreign_tax_credit < 0:
+            raise ValueError(
+                "foreign_tax_credit must be a positive amount; got "
+                f"{self.foreign_tax_credit}"
+            )
 
 
 @dataclass(frozen=True)
@@ -399,10 +424,44 @@ class DeductionDetail:
 
 
 @dataclass(frozen=True)
+class CreditDetail:
+    """Nonrefundable credits and the limitation that produced the total.
+
+    The child tax credit and the credit for other dependents form one family
+    credit under section 24.  ``family_credit_before_phaseout`` is the sum of
+    the tentative child credit and the $500-per-other-dependent credit.
+    ``family_credit_phaseout`` is the section 24(b) reduction, and
+    ``family_credit`` is what remains.  ``foreign_tax_credit`` is the allowed
+    credit supplied by the caller.  ``allowed`` is the amount actually applied
+    after limiting the total to the pre-credit tax.
+    """
+    qualifying_children: int = 0
+    other_dependents: int = 0
+    child_credit_before_phaseout: float = 0.0
+    other_dependent_credit_before_phaseout: float = 0.0
+    family_credit_before_phaseout: float = 0.0
+    family_credit_phaseout: float = 0.0
+    family_credit: float = 0.0
+    foreign_tax_credit: float = 0.0
+    allowed: float = 0.0
+
+    @property
+    def total_before_limit(self) -> float:
+        """All nonrefundable credits before the tax-liability limit."""
+        return self.family_credit + self.foreign_tax_credit
+
+    @property
+    def total(self) -> float:
+        """Nonrefundable credits actually applied."""
+        return self.allowed
+
+
+@dataclass(frozen=True)
 class TaxableIncome:
     """Taxable income with the deduction detail that produced it."""
     amount: float = 0.0
     deductions: DeductionDetail = DeductionDetail()
+    section_199a_deduction: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -477,6 +536,8 @@ class TaxResult:
     preferential_tax: float = 0.0
     capital_gains: CapitalGainDetail | None = None
     deductions: DeductionDetail | None = None
+    credits: CreditDetail | None = None
+    section_199a_deduction: float = 0.0
 
 @dataclass
 class ReturnResult:
